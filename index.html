@@ -215,6 +215,13 @@ input,select,textarea{font-family:inherit;font-size:14px;}
 .side-foot{border-top:1px solid rgba(255,255,255,.14);padding-top:16px;margin-top:10px;}
 .report-export-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-4px 0 14px;padding:8px 12px;background:var(--surface);border:1px solid var(--line);border-radius:8px;}
 .report-export-bar .small{margin-inline-end:4px;}
+.perm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;margin-top:6px;}
+.perm-card label{font-size:13px;}
+.perm-grid .card + .card{margin-top:0;}
+.who-session{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;color:var(--sidebar-ink-soft);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:2px 8px;white-space:nowrap;max-width:100%;}
+.who-session .dot{width:6px;height:6px;border-radius:50%;background:var(--good);flex:none;}
+.who-session.soon{color:#F5C451;background:rgba(245,196,81,.12);border-color:rgba(245,196,81,.45);font-weight:700;}
+.who-session.soon .dot{background:#F5C451;}
 .app-switch{text-decoration:none;margin-top:8px;border:1px dashed rgba(255,255,255,.22);}
 .app-switch .ext{margin-inline-start:auto;opacity:.6;font-size:12px;}
 .who-card{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;padding:4px 8px 16px;}
@@ -367,6 +374,103 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:16px 0;}
   .topbar{padding:12px 14px;}
 }
 
+/* ================= SIDEBAR STYLES (الإعدادات ← شكل القائمة الجانبية) =================
+   html[data-sb="…"] switches the whole sidebar look; "classic" = the original theme-driven look. */
+.who-avatar .av-txt{display:block;white-space:nowrap;line-height:1.9;}
+.side-icon-btn .lbl{display:none;}
+html[data-sb]:not([data-sb="classic"]){--sidebar-w:252px;}
+html[data-sb]:not([data-sb="classic"]) .brand{flex-direction:column;text-align:center;gap:10px;padding:6px 6px 16px;margin-bottom:8px;}
+html[data-sb]:not([data-sb="classic"]) .brand .mark{width:64px;height:64px;border-radius:16px;font-size:18px;color:#8e1526;}
+html[data-sb]:not([data-sb="classic"]) .brand strong{font-size:16.5px;line-height:1.4;white-space:normal;}
+html[data-sb]:not([data-sb="classic"]) .who-avatar{width:76px;height:76px;font-size:24px;}
+html[data-sb]:not([data-sb="classic"]) .navlink{padding:10px 13px;font-size:15px;}
+
+/* 1 — الزمردي الملكي */
+html[data-sb="emerald"] .sidebar{background:linear-gradient(180deg,#123526 0%,#0b2219 100%);color:#e9f1ea;}
+html[data-sb="emerald"] .brand{border-bottom:1px solid rgba(212,175,55,.35);}
+html[data-sb="emerald"] .brand .mark{box-shadow:0 0 0 2px #d4af37,0 6px 16px rgba(0,0,0,.35);background:#fff;}
+html[data-sb="emerald"] .brand strong{color:#f3e7c4;}
+html[data-sb="emerald"] .brand small{color:#9fb9a8;opacity:1;}
+html[data-sb="emerald"] .navlink{color:#b9cfc0;}
+html[data-sb="emerald"] .navlink:hover{background:rgba(212,175,55,.08);}
+html[data-sb="emerald"] .navlink.active{background:linear-gradient(90deg,rgba(212,175,55,.08),rgba(212,175,55,.24));color:#f6e6b0;box-shadow:inset -3px 0 0 #d4af37;}
+html[data-sb="emerald"] .app-switch{border:1px dashed rgba(212,175,55,.45);color:#e7d18d;}
+html[data-sb="emerald"] .side-foot{border-top-color:rgba(212,175,55,.35);}
+html[data-sb="emerald"] .who-avatar{background:radial-gradient(circle at 30% 25%,#1f4a36,#0c2419);box-shadow:0 0 0 2px #d4af37,0 0 0 6px rgba(212,175,55,.15);color:#f0d77a;}
+html[data-sb="emerald"] .who b{color:#e9f1ea;}
+html[data-sb="emerald"] .who-badge{background:rgba(212,175,55,.15);color:#f0d77a;border:1px solid rgba(212,175,55,.35);}
+html[data-sb="emerald"] .side-icon-btn{background:transparent;border-color:rgba(212,175,55,.4);color:#f0d77a;}
+
+/* 2 — الأسود والذهبي */
+html[data-sb="blackgold"] .sidebar{background:#0c0c0e;color:#e8e3d6;border-inline-start:1px solid #2a2418;}
+html[data-sb="blackgold"] .brand{flex-direction:row;text-align:right;border-bottom:1px solid #2a2418;}
+html[data-sb="blackgold"] .brand .mark{width:52px;height:52px;border-radius:12px;box-shadow:0 0 0 1px #c9a449;background:#fff;}
+html[data-sb="blackgold"] .brand strong{background:linear-gradient(90deg,#f7e3a3,#c9a449);-webkit-background-clip:text;background-clip:text;color:transparent;font-size:15.5px;}
+html[data-sb="blackgold"] .brand small{color:#8c826b;opacity:1;}
+html[data-sb="blackgold"] .navlink{color:#a9a18c;}
+html[data-sb="blackgold"] .navlink:hover{background:rgba(201,164,73,.08);}
+html[data-sb="blackgold"] .navlink.active{background:linear-gradient(135deg,#e9c86a,#b88a2c);color:#1a1406;}
+html[data-sb="blackgold"] .app-switch{border:none;border-top:1px solid #2a2418;border-bottom:1px solid #2a2418;border-radius:0;color:#c9a449;}
+html[data-sb="blackgold"] .side-foot{border-top:none;}
+html[data-sb="blackgold"] .who-card{flex-direction:row;text-align:right;align-items:center;gap:12px;background:linear-gradient(145deg,#17150f,#0f0e0a);border:1px solid #3a321f;border-radius:14px;padding:12px;margin-bottom:10px;}
+html[data-sb="blackgold"] .who-avatar{width:62px;height:62px;font-size:19px;border:1.5px solid #c9a449;background:#16130c;color:#f1d98c;}
+html[data-sb="blackgold"] .who{align-items:flex-start;flex:1;}
+html[data-sb="blackgold"] .who b{color:#e8e3d6;}
+html[data-sb="blackgold"] .who-badge{background:none;padding:0;color:#c9a449;}
+html[data-sb="blackgold"] .who-badge::before{content:'◆ ';}
+html[data-sb="blackgold"] .who-session{background:none;border:none;padding:0;white-space:normal;color:#8c826b;font-size:10px;line-height:1.5;}
+html[data-sb="blackgold"] .who-session .dot{display:none;}
+html[data-sb="blackgold"] .who-actions{gap:8px;}
+html[data-sb="blackgold"] .side-icon-btn{width:auto;border-radius:10px;padding:0 14px;gap:6px;background:transparent;border-color:#3a321f;color:#c9a449;font-size:13px;}
+html[data-sb="blackgold"] .side-icon-btn .lbl{display:inline;}
+
+/* 3 — الكحلي الزجاجي */
+html[data-sb="navyglass"] .sidebar{background:radial-gradient(120% 60% at 100% 0%,#1e3a6b 0%,rgba(30,58,107,0) 60%),linear-gradient(180deg,#0e1a33,#0a1224);color:#e6ecf8;}
+html[data-sb="navyglass"] .brand{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:14px 10px;}
+html[data-sb="navyglass"] .brand .mark{border-radius:50%;box-shadow:0 0 0 3px rgba(255,255,255,.15);background:#fff;}
+html[data-sb="navyglass"] .brand small{color:#8ea3c8;opacity:1;}
+html[data-sb="navyglass"] .navlink{color:#aebbd6;padding:6px 10px;}
+html[data-sb="navyglass"] .navlink .ic{background:rgba(255,255,255,.07);border-radius:8px;width:27px;height:27px;display:flex;align-items:center;justify-content:center;flex:none;font-size:14px;}
+html[data-sb="navyglass"] .navlist li{margin-bottom:2px;}
+html[data-sb="navyglass"] .brand{padding:12px 10px;}
+html[data-sb="navyglass"] .brand .mark{width:56px;height:56px;}
+html[data-sb="navyglass"] .navlink.active{background:rgba(88,166,255,.14);color:#fff;box-shadow:inset 0 0 0 1px rgba(88,166,255,.35);}
+html[data-sb="navyglass"] .navlink.active .ic{background:linear-gradient(135deg,#58a6ff,#3b6fe0);color:#fff;}
+html[data-sb="navyglass"] .app-switch{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:#cfe0ff;}
+html[data-sb="navyglass"] .side-foot{border-top:none;}
+html[data-sb="navyglass"] .who-card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:14px 10px;margin-bottom:10px;}
+html[data-sb="navyglass"] .who-avatar{border:3px solid transparent;background-image:linear-gradient(#0e1a33,#0e1a33),conic-gradient(#58a6ff,#8b5cf6,#58a6ff);background-origin:border-box;background-clip:padding-box,border-box;color:#fff;}
+html[data-sb="navyglass"] .who-badge{background:linear-gradient(135deg,#58a6ff,#3b6fe0);color:#fff;}
+html[data-sb="navyglass"] .side-icon-btn{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.12);color:#cfe0ff;}
+
+/* 4 — العنابي الملكي */
+html[data-sb="burgundy"] .sidebar{background:linear-gradient(180deg,#4a0f1c 0%,#2a0810 100%);color:#f6e9e1;}
+html[data-sb="burgundy"] .brand .mark{border-radius:50%;background:#fff;color:#8e1526;box-shadow:0 0 0 3px #e0c083,0 8px 18px rgba(0,0,0,.35);width:68px;height:68px;}
+html[data-sb="burgundy"] .brand strong{color:#fff3e0;}
+html[data-sb="burgundy"] .brand small{color:#e0c083;opacity:1;}
+html[data-sb="burgundy"] .navlink{color:#e4c9c4;}
+html[data-sb="burgundy"] .navlink:hover{background:rgba(255,243,224,.08);}
+html[data-sb="burgundy"] .navlink.active{background:#fff3e0;color:#5c1223;border-radius:24px;}
+html[data-sb="burgundy"] .app-switch{border:1px solid rgba(224,192,131,.5);border-radius:24px;color:#f3d9a4;}
+html[data-sb="burgundy"] .side-foot{border-top:none;}
+html[data-sb="burgundy"] .who-card{background:rgba(0,0,0,.2);border:1px solid rgba(224,192,131,.3);border-radius:18px;padding:14px 10px;margin-bottom:10px;}
+html[data-sb="burgundy"] .who-avatar{background:#fff3e0;color:#7b1426;box-shadow:0 0 0 2px #e0c083;}
+html[data-sb="burgundy"] .who b{color:#fff3e0;}
+html[data-sb="burgundy"] .who-badge{background:#e0c083;color:#2a0810;}
+html[data-sb="burgundy"] .side-icon-btn{background:transparent;border-color:rgba(224,192,131,.5);color:#f3d9a4;}
+
+/* settings pickers */
+.sb-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;}
+.sb-swatch{border:2px solid var(--line);border-radius:12px;padding:10px;cursor:pointer;background:var(--surface-2);color:var(--ink);font-family:inherit;text-align:center;}
+.sb-swatch.active{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+.sb-swatch .pv{height:86px;border-radius:8px;margin-bottom:8px;position:relative;overflow:hidden;}
+.font-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:12px;}
+.font-opt{border:2px solid var(--line);border-radius:12px;padding:10px 6px 8px;cursor:pointer;background:var(--surface-2);color:var(--ink);font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:6px;}
+.font-opt.active{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+.font-opt .circ{width:78px;height:78px;border-radius:50%;background:radial-gradient(circle at 30% 25%,#1f4a36,#0c2419);box-shadow:0 0 0 2px #d4af37;color:#f0d77a;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.font-opt .circ span{white-space:nowrap;line-height:1.9;}
+.font-opt small{font-size:11.5px;color:var(--muted);}
+
 /* ---------- print (used by "طباعة التقرير / حفظ PDF") ---------- */
 @media print{
   html, body{background:#fff !important;}
@@ -420,12 +524,12 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:16px 0;}
     <div class="side-foot">
       <div class="who-card">
         <div class="who-avatar" id="whoAvatar"></div>
-        <div class="who"><b id="whoName"></b><span class="who-badge" id="whoRole"></span></div>
+        <div class="who"><b id="whoName"></b><span class="who-badge" id="whoRole"></span><span class="who-session" id="whoSession" style="display:none"></span></div>
       </div>
       <div class="who-actions">
-        <button class="side-icon-btn" onclick="App.openMyAccountForm()" title="تغيير اسم المستخدم / كلمة المرور" aria-label="تغيير اسم المستخدم / كلمة المرور">⚙</button>
+        <button class="side-icon-btn" onclick="App.openMyAccountForm()" title="تغيير اسم المستخدم / كلمة المرور" aria-label="تغيير اسم المستخدم / كلمة المرور">⚙<span class="lbl">حسابي</span></button>
         <button class="side-icon-btn" onclick="App.logout()" title="تسجيل الخروج" aria-label="تسجيل الخروج">
-          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg><span class="lbl">خروج</span>
         </button>
       </div>
     </div>
@@ -608,7 +712,7 @@ const THEMES = [
 
 /* ---------------- PERMISSIONS (per job / role) ---------------- */
 function defaultPermissions(){
-  return {
+  return normalizePerms({
     returns:{view:true, add:true, edit:true, delete:true},
     orders:{view:true, add:true, edit:true, delete:true},
     reports:{view:true},
@@ -618,7 +722,98 @@ function defaultPermissions(){
     warehouses:{view:false, edit:false},
     links:{view:false, edit:false},
     finance:{view:false, edit:false},
-  };
+  });
+}
+/* ---------------- PERMISSIONS SCHEMA ----------------
+   One list drives the checkboxes in the user / job forms, the saved object,
+   and App.can(). To add a new controllable feature later: add one line here
+   and gate the feature with App.can('group.key'). `def` is the value used for
+   users saved before that line existed, so nothing changes for them silently. */
+const PERM_SCHEMA = [
+  {g:'dashboard', label:'🏠 لوحة التحكم', keys:[
+    {k:'view', label:'يشوف لوحة التحكم', def:true},
+  ]},
+  {g:'returns', label:'↩ المرتجعات', keys:[
+    {k:'view', label:'يشوف صفحة المرتجعات', def:true},
+    {k:'add', label:'تسجيل مرتجع يدوي', def:true},
+    {k:'import', label:'استيراد مرتجعات من إكسيل', def:p=>!!(p.returns&&p.returns.add)},
+    {k:'edit', label:'تعديل المرتجعات', def:true},
+    {k:'delete', label:'حذف المرتجعات', def:true},
+  ]},
+  {g:'orders', label:'▤ الطلبيات', keys:[
+    {k:'view', label:'يشوف صفحة الطلبيات', def:true},
+    {k:'add', label:'تسجيل طلبية يدوي', def:true},
+    {k:'import', label:'استيراد طلبيات من إكسيل', def:p=>!!(p.orders&&p.orders.add)},
+    {k:'edit', label:'تعديل الطلبيات', def:true},
+    {k:'delete', label:'حذف الطلبيات', def:true},
+  ]},
+  {g:'items', label:'◆ الأصناف', keys:[
+    {k:'view', label:'يشوف صفحة الأصناف', def:true},
+    {k:'edit', label:'إضافة / تعديل / حذف الأصناف', def:true},
+    {k:'import', label:'استيراد أصناف من إكسيل', def:p=>!!(p.items&&p.items.edit)},
+  ]},
+  {g:'inventory', label:'▥ المخزون', keys:[
+    {k:'view', label:'يشوف أرصدة المخزون', def:true},
+    {k:'edit', label:'تعديل رصيد صنف يدويًا', def:false},
+    {k:'import', label:'رفع أرصدة من إكسيل (جرد / استلام)', def:p=>!!(p.inventory&&p.inventory.edit)},
+  ]},
+  {g:'stores', label:'⌘ المحلات', keys:[
+    {k:'view', label:'يشوف المحلات', def:false},
+    {k:'edit', label:'إضافة / تعديل / حذف المحلات', def:false},
+  ]},
+  {g:'warehouses', label:'⛁ المستودعات', keys:[
+    {k:'view', label:'يشوف المستودعات', def:false},
+    {k:'edit', label:'إضافة / تعديل / حذف المستودعات', def:false},
+  ]},
+  {g:'links', label:'🔗 ربط المحلات بالمستودعات', keys:[
+    {k:'view', label:'يشوف الربط', def:false},
+    {k:'edit', label:'يغيّر الربط', def:false},
+  ]},
+  {g:'finance', label:'💰 التكاليف والمالية', keys:[
+    {k:'view', label:'يشوف التكاليف وتقرير الخسائر', def:false},
+    {k:'edit', label:'يعدّل تكلفة الأصناف', def:false},
+  ]},
+  {g:'reports', label:'▦ التقارير', keys:[
+    {k:'view', label:'يفتح صفحة التقارير', def:true},
+  ]},
+  {g:'reportTabs', label:'📑 التقارير اللي تظهر له', dependsOn:'reports.view', keys:[
+    {k:'lookup', label:'بحث تفصيلي عن صنف', def:true},
+    {k:'custom', label:'التقرير الشامل', def:true},
+    {k:'record', label:'تفصيل عملية واحدة', def:true},
+    {k:'item-period', label:'مقارنة فترات لصنف', def:true},
+    {k:'store', label:'تقرير حسب المحل', def:true},
+    {k:'branch-perf', label:'أداء الفروع', def:true},
+    {k:'movers', label:'الأكثر والأقل ترجيعًا', def:true},
+    {k:'stock', label:'المخزون والنواقص', def:true},
+    {k:'orders-vs-returns', label:'الطلبيات مقابل المرتجعات', def:true},
+    {k:'expiry', label:'تقرير الصلاحية', def:true},
+    {k:'costs', label:'التكاليف والخسائر (محتاج كمان صلاحية المالية)', def:true},
+  ]},
+  {g:'export', label:'⬇ التصدير', keys:[
+    {k:'pdf', label:'تحميل PDF', def:true},
+    {k:'excel', label:'تحميل Excel / CSV', def:true},
+  ]},
+  {g:'scope', label:'🌐 نطاق البيانات', keys:[
+    {k:'allStores', label:'يشوف بيانات كل الفروع (مش فرعه بس)', def:false},
+  ]},
+];
+function permDefault(g, k, p){
+  const grp = PERM_SCHEMA.find(x=>x.g===g); if(!grp) return false;
+  const key = grp.keys.find(x=>x.k===k); if(!key) return false;
+  return typeof key.def==='function' ? key.def(p||{}) : !!key.def;
+}
+/* fill every key the schema knows about (keeps whatever was already saved) */
+function normalizePerms(p){
+  const src = p || {};
+  const out = {};
+  PERM_SCHEMA.forEach(grp=>{
+    out[grp.g] = {};
+    grp.keys.forEach(key=>{
+      const v = src[grp.g] ? src[grp.g][key.k] : undefined;
+      out[grp.g][key.k] = (v===undefined) ? permDefault(grp.g, key.k, src) : !!v;
+    });
+  });
+  return out;
 }
 const PERM_PRESETS = {
   full: {label:'صلاحية كاملة (كل شيء)', perms:{
@@ -672,11 +867,141 @@ const App = {
      visitor's OS light/dark setting. Called on load, whenever a Firestore
      sync brings in a theme chosen on another device, and live when the
      owner picks one in الإعدادات. */
+  /* ================= SIDEBAR STYLE + NAME-IN-CIRCLE ================= */
+  SIDEBAR_STYLES: [
+    {id:'classic',   name:'الشكل الأصلي',     sub:'بألوان الثيم المختار', pv:'background:var(--sidebar-bg)'},
+    {id:'emerald',   name:'الزمردي الملكي',   sub:'أخضر غامق وذهبي',     pv:'background:linear-gradient(180deg,#123526,#0b2219);box-shadow:inset 0 -3px 0 #d4af37'},
+    {id:'blackgold', name:'الأسود والذهبي',   sub:'فخامة كلاسيك',        pv:'background:#0c0c0e;box-shadow:inset 0 0 0 1px #3a321f'},
+    {id:'navyglass', name:'الكحلي الزجاجي',   sub:'عصري وشفاف',          pv:'background:radial-gradient(120% 60% at 100% 0%,#1e3a6b,transparent 60%),linear-gradient(180deg,#0e1a33,#0a1224)'},
+    {id:'burgundy',  name:'العنابي الملكي',   sub:'بيتماشى مع اللوجو الأحمر', pv:'background:linear-gradient(180deg,#4a0f1c,#2a0810);box-shadow:inset 0 -3px 0 #e0c083'},
+  ],
+  NAME_FONTS_AR: [
+    {id:'Gulzar', label:'نستعليق — جلزار', css:"'Gulzar'", g:'Gulzar'},
+    {id:'Noto Nastaliq Urdu', label:'نستعليق — نوتو', css:"'Noto Nastaliq Urdu'", g:'Noto+Nastaliq+Urdu:wght@700'},
+    {id:'Aref Ruqaa', label:'رقعة — عارف', css:"'Aref Ruqaa'", g:'Aref+Ruqaa:wght@700'},
+    {id:'Mirza', label:'ميرزا — نسخ فخم', css:"'Mirza'", g:'Mirza:wght@700'},
+    {id:'Rakkas', label:'رقّاص — عريض', css:"'Rakkas'", g:'Rakkas'},
+    {id:'Katibeh', label:'كاتبة — مخطوط', css:"'Katibeh'", g:'Katibeh'},
+    {id:'Kufam', label:'كوفام — كوفي حديث', css:"'Kufam'", g:'Kufam:wght@700'},
+  ],
+  NAME_FONTS_EN: [
+    {id:'Great Vibes', label:'Great Vibes', css:"'Great Vibes'", g:'Great+Vibes'},
+    {id:'Pinyon Script', label:'Pinyon Script', css:"'Pinyon Script'", g:'Pinyon+Script'},
+    {id:'Monsieur La Doulaise', label:'Monsieur La Doulaise', css:"'Monsieur La Doulaise'", g:'Monsieur+La+Doulaise'},
+    {id:'Imperial Script', label:'Imperial Script', css:"'Imperial Script'", g:'Imperial+Script'},
+    {id:'Corinthia', label:'Corinthia', css:"'Corinthia'", g:'Corinthia:wght@700'},
+    {id:'Parisienne', label:'Parisienne', css:"'Parisienne'", g:'Parisienne'},
+    {id:'Cinzel Decorative', label:'Cinzel Decorative', css:"'Cinzel Decorative'", g:'Cinzel+Decorative:wght@700', upper:true},
+    {id:'Playfair Display SC', label:'Playfair SC', css:"'Playfair Display SC'", g:'Playfair+Display+SC:wght@700'},
+  ],
+  _loadedFonts: {},
+  loadFonts(list){
+    const need = list.filter(f=>f && !this._loadedFonts[f.id]);
+    if(!need.length) return;
+    need.forEach(f=>{ this._loadedFonts[f.id]=true; });
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://fonts.googleapis.com/css2?' + need.map(f=>'family='+f.g).join('&') + '&display=swap';
+    link.onload = ()=>{ if(document.fonts && document.fonts.ready) document.fonts.ready.then(()=>this.fitAllNames()); };
+    document.head.appendChild(link);
+  },
+  sbSettings(){
+    const st = (this.db && this.db.settings) || {};
+    return {style: st.sidebarStyle||'classic', mode: st.avatarMode||'ar', fontAr: st.nameFontAr||'Gulzar', fontEn: st.nameFontEn||'Great Vibes'};
+  },
+  applySidebarStyle(){
+    const s = this.sbSettings();
+    document.documentElement.setAttribute('data-sb', s.style);
+  },
+  /* the text shown inside a user's circle: their Arabic or English display name, else the first letter */
+  avatarContent(u){
+    const s = this.sbSettings();
+    const owner = u && u.username===this.OWNER_USERNAME;
+    const ar = (u && u.avatarNameAr) || (owner? 'مهند' : '');
+    const en = (u && u.avatarNameEn) || (owner? 'Mohannad' : '');
+    const fAr = this.NAME_FONTS_AR.find(f=>f.id===s.fontAr) || this.NAME_FONTS_AR[0];
+    const fEn = this.NAME_FONTS_EN.find(f=>f.id===s.fontEn) || this.NAME_FONTS_EN[0];
+    if(s.mode==='en' && en) return {text: fEn.upper? en.toUpperCase() : en, font: fEn, dir:'ltr'};
+    if(s.mode==='ar' && ar) return {text: ar, font: fAr, dir:'rtl'};
+    if(s.mode!=='letter' && (ar||en)) return ar ? {text:ar, font:fAr, dir:'rtl'} : {text:en, font:fEn, dir:'ltr'};
+    const dn = (u && (u.name||u.username)) || '?';
+    return {text: dn.trim().charAt(0), font:null, dir:'rtl'};
+  },
+  renderAvatar(el, u){
+    if(!el) return;
+    const c = this.avatarContent(u);
+    if(!c.font){ el.textContent = c.text; return; }
+    this.loadFonts([c.font]);
+    el.innerHTML = `<span class="av-txt" dir="${c.dir}" style="font-family:${c.font.css},'Cairo',sans-serif">${esc(c.text)}</span>`;
+    this.fitName(el.firstChild, el);
+  },
+  /* shrink a name until it fits inside its circle */
+  fitName(span, box){
+    if(!span || !box) return;
+    const w = box.clientWidth || 70, h = box.clientHeight || 70;
+    let fs = Math.round(w*0.42);
+    span.style.fontSize = fs+'px';
+    while((span.scrollWidth > w*0.76 || span.scrollHeight > h*0.95) && fs > 9){ fs--; span.style.fontSize = fs+'px'; }
+  },
+  fitAllNames(){
+    document.querySelectorAll('.who-avatar .av-txt').forEach(sp=>this.fitName(sp, sp.parentElement));
+    document.querySelectorAll('.font-opt .circ span').forEach(sp=>this.fitName(sp, sp.parentElement));
+  },
+  setSidebarSetting(key, val){
+    if(!this.isOwner()) return;
+    this.db.settings[key] = val;
+    this.applySidebarStyle();
+    this.logActivity('عدّل شكل القائمة الجانبية');
+    this.refresh();
+    this.buildNav();
+  },
+  saveMyAvatarNames(){
+    if(!this.isOwner()) return;
+    const u = this.currentUser();
+    u.avatarNameAr = document.getElementById('sb_nameAr').value.trim();
+    u.avatarNameEn = document.getElementById('sb_nameEn').value.trim();
+    this.refresh(); this.buildNav();
+  },
+  sidebarSettingsCardHtml(){
+    const s = this.sbSettings();
+    const me = this.currentUser();
+    this.loadFonts(this.NAME_FONTS_AR.concat(this.NAME_FONTS_EN));
+    setTimeout(()=>this.fitAllNames(), 60);
+    const arName = me.avatarNameAr || 'مهند', enName = me.avatarNameEn || 'Mohannad';
+    const fontOpt = (f, key, txt, dir)=>`<button class="font-opt ${ (key==='nameFontAr'?s.fontAr:s.fontEn)===f.id?'active':''}" onclick="App.setSidebarSetting('${key}','${f.id}')">
+        <span class="circ"><span dir="${dir}" style="font-family:${f.css},'Cairo',sans-serif">${esc(f.upper? txt.toUpperCase(): txt)}</span></span><small>${esc(f.label)}</small></button>`;
+    return `
+      <div class="card" style="margin-top:14px;">
+        <div class="section-head"><h3>🎨 شكل القائمة الجانبية</h3></div>
+        <div class="small muted" style="margin-bottom:12px;">بيتطبّق على كل المستخدمين فورًا. الأصلي بياخد ألوان الثيم اللي فوق.</div>
+        <div class="sb-grid">
+          ${this.SIDEBAR_STYLES.map(x=>`<button class="sb-swatch ${s.style===x.id?'active':''}" onclick="App.setSidebarSetting('sidebarStyle','${x.id}')">
+            <div class="pv" style="${x.pv}"></div><div style="font-weight:800;font-size:13px;">${esc(x.name)}</div><div class="small muted">${esc(x.sub)}</div>
+            ${s.style===x.id?'<div class="small" style="color:var(--accent);margin-top:3px;">✓ مُفعّل</div>':''}</button>`).join('')}
+        </div>
+        <hr class="sep">
+        <div class="section-head" style="margin-bottom:8px;"><h3 style="font-size:14.5px;">الاسم اللي جوه الدايرة</h3></div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;">
+          ${[['ar','الاسم بالعربي'],['en','الاسم بالإنجليزي'],['letter','أول حرف بس']].map(([v,l])=>`<label style="display:inline-flex;gap:6px;align-items:center;cursor:pointer;"><input type="radio" name="sbMode" style="width:auto;" ${s.mode===v?'checked':''} onchange="App.setSidebarSetting('avatarMode','${v}')"> ${l}</label>`).join('')}
+        </div>
+        <div class="form-row" style="max-width:560px;">
+          <div class="field"><label>اسمك بالعربي (في الدايرة)</label><input type="text" id="sb_nameAr" value="${esc(me.avatarNameAr||'')}" placeholder="مهند" onchange="App.saveMyAvatarNames()"></div>
+          <div class="field"><label>اسمك بالإنجليزي (في الدايرة)</label><input type="text" id="sb_nameEn" dir="ltr" value="${esc(me.avatarNameEn||'')}" placeholder="Mohannad" onchange="App.saveMyAvatarNames()"></div>
+        </div>
+        <div class="small muted" style="margin:-4px 0 12px;">باقي المستخدمين بتكتب أسماءهم من شاشة تعديل المستخدم.</div>
+        <div style="font-weight:700;font-size:13px;margin-bottom:8px;">الخط العربي</div>
+        <div class="font-grid">${this.NAME_FONTS_AR.map(f=>fontOpt(f,'nameFontAr',arName,'rtl')).join('')}</div>
+        <div style="font-weight:700;font-size:13px;margin:14px 0 8px;">الخط الإنجليزي</div>
+        <div class="font-grid">${this.NAME_FONTS_EN.map(f=>fontOpt(f,'nameFontEn',enName,'ltr')).join('')}</div>
+      </div>`;
+  },
+
   applyTheme(themeId){
     const id = themeId || (this.db.settings && this.db.settings.themeId) || 'cyan';
     const theme = THEMES.find(t=>t.id===id) || THEMES[0];
     const root = document.documentElement.style;
     THEME_VAR_KEYS.forEach(k=>{ if(theme.vars[k]) root.setProperty('--'+k, theme.vars[k]); });
+    this.applySidebarStyle();
   },
 
   init(){
@@ -695,6 +1020,8 @@ const App = {
           if(!su.email){
             localStorage.removeItem(SESSION_KEY);
             this._forceEmailMsg = true;
+          } else if(this.isEmailJSConfigured() && !this.isDeviceTrusted(su.id)){
+            localStorage.removeItem(SESSION_KEY);   // login period over — ask for a new code
           } else {
             this.session = s;
           }
@@ -740,6 +1067,17 @@ const App = {
      the owner's own email instead of shown on screen. Configured entirely
      from الإعدادات (owner-only) — nothing is sent until those 3 fields are
      filled in, so the app keeps working normally in the meantime. */
+  /* the name recipients see as the sender (used by the template's "From Name" = {{from_name}}) */
+  emailSenderName(){
+    const st = this.db.settings || {};
+    return (st.emailFromName && st.emailFromName.trim()) || ('نظام المرتجعات' + (st.companyName? ' — '+st.companyName : ''));
+  },
+  saveEmailFromName(){
+    if(!this.isOwner()) return;
+    this.db.settings.emailFromName = document.getElementById('ej_fromName').value.trim();
+    this.logActivity(`عدّل اسم مرسل الإيميلات إلى "${this.emailSenderName()}"`);
+    this.refresh();
+  },
   isEmailJSConfigured(){
     const e = this.db.settings && this.db.settings.emailjs;
     return !!(e && e.serviceId && e.templateId && e.publicKey);
@@ -751,6 +1089,7 @@ const App = {
     return emailjs.send(e.serviceId, e.templateId, {
       to_email: toEmail,
       code: code,
+      from_name: this.emailSenderName(),
       app_name: (this.db.settings && this.db.settings.companyName) || 'نظام مرتجعات المحلات',
       to_name: toName || 'مستخدم النظام',
     });
@@ -767,6 +1106,42 @@ const App = {
   },
   markDeviceTrusted(userId){
     try{ localStorage.setItem('rm_trusted_'+userId, String(Date.now())); }catch(e){}
+  },
+  forgetDeviceTrust(userId){
+    try{ localStorage.removeItem('rm_trusted_'+userId); }catch(e){}
+  },
+  /* when the current login stops being valid (a new email code is needed) */
+  sessionExpiry(userId){
+    try{
+      const ts = parseInt(localStorage.getItem('rm_trusted_'+userId)||'',10);
+      return ts ? ts + this.TRUSTED_DEVICE_DAYS*24*60*60*1000 : null;
+    }catch(e){ return null; }
+  },
+  renderSessionInfo(){
+    const el = document.getElementById('whoSession');
+    if(!el || !this.session) return;
+    const exp = this.sessionExpiry(this.session.userId);
+    if(!exp){ el.style.display='none'; return; }
+    const left = exp - Date.now();
+    if(left<=0){ this.expireSession(); return; }
+    const days = left>=86400000 ? Math.ceil(left/86400000 - 0.02) : 0, hours = Math.ceil(left/3600000);
+    const dt = new Date(exp);
+    const dateTxt = dt.toLocaleDateString('ar-EG-u-nu-latn', {day:'numeric', month:'long'});
+    const plural = (n, one, two, few, many)=> n===1? one : n===2? two : (n<=10? `${n} ${few}` : `${n} ${many}`);
+    const leftTxt = 'باقي ' + (days>=1 ? plural(days,'يوم','يومين','أيام','يوم') : (hours>1? plural(hours,'ساعة','ساعتين','ساعات','ساعة') : 'أقل من ساعة'));
+    el.innerHTML = `<span class="dot"></span>الجلسة حتى ${esc(dateTxt)} • ${leftTxt}`;
+    el.title = 'بعد الموعد ده هيطلب منك رمز تحقق جديد على الإيميل';
+    el.classList.toggle('soon', left < 86400000);
+    el.style.display = '';
+  },
+  expireSession(){
+    if(!this.session) return;
+    const uid_ = this.session.userId;
+    this.forgetDeviceTrust(uid_);
+    localStorage.removeItem(SESSION_KEY);
+    this.session = null;
+    this.showLogin();
+    this.notify('انتهت مدة الجلسة — سجّل دخول تاني وهيتبعتلك رمز تحقق جديد على الإيميل.');
   },
   LOGIN_CODE_VALID_MINUTES: 10,
   _loginCode: null, // {userId, code, ts}
@@ -899,6 +1274,7 @@ const App = {
     this.startLoginVerification(user.id);
   },
   logout(){
+    if(this.session) this.forgetDeviceTrust(this.session.userId);
     localStorage.removeItem(SESSION_KEY);
     this.session=null;
     document.getElementById('loginUser').value='';
@@ -915,16 +1291,18 @@ const App = {
     const u = this.currentUser();
     if(!u || u.role==='admin') return true;
     const perms = u.permissions || defaultPermissions();
-    let node = perms;
-    for(const p of permPath.split('.')){ node = node ? node[p] : undefined; }
-    return !!node;
+    const [g,k] = permPath.split('.');
+    const v = perms[g] ? perms[g][k] : undefined;
+    return v===undefined ? permDefault(g, k, perms) : !!v;
   },
+  /* sees every branch's data (admin, or a user the admin allowed to) */
+  allStores(){ return this.isAdmin() || this.can('scope.allStores'); },
 
   toggleSidebar(){ document.getElementById('sidebar').classList.toggle('open'); },
 
   NAV: [
-    {id:'dashboard', label:'لوحة التحكم', ic:'⌂'},
-    {id:'returns', label:'المرتجعات', ic:'↩'},
+    {id:'dashboard', label:'لوحة التحكم', ic:'⌂', perm:'dashboard.view'},
+    {id:'returns', label:'المرتجعات', ic:'↩', perm:'returns.view'},
     {id:'orders', label:'الطلبيات', ic:'▤', perm:'orders.view'},
     {id:'reports', label:'التقارير', ic:'▦', perm:'reports.view'},
     {id:'items', label:'الأصناف', ic:'◆', perm:'items.view'},
@@ -964,7 +1342,9 @@ const App = {
   buildNav(){
     const nav = document.getElementById('navlist');
     const admin = this.isAdmin();
-    nav.innerHTML = this.NAV.filter(n=>this.navVisible(n)).map(n=>`
+    const visibleNav = this.NAV.filter(n=>this.navVisible(n));
+    if(visibleNav.length && !visibleNav.some(n=>n.id===this.view)) this.view = visibleNav[0].id;
+    nav.innerHTML = visibleNav.map(n=>`
       <li><button class="navlink" data-view="${n.id}" onclick="App.navClick(event,'${n.id}')"><span class="ic">${n.ic}</span>${n.label}</button></li>
     `).join('');
     const u = this.currentUser();
@@ -974,7 +1354,9 @@ const App = {
       ? 'مدير عام'
       : ((u.jobTitle||'مستخدم محل') + (this.storeName(u.storeId)? ' — '+this.storeName(u.storeId) : ''));
     const avatarEl = document.getElementById('whoAvatar');
-    if(avatarEl) avatarEl.textContent = (displayName||'?').trim().charAt(0);
+    if(avatarEl) this.renderAvatar(avatarEl, u);
+    this.renderSessionInfo();
+    if(!this._sessionTimer) this._sessionTimer = setInterval(()=>{ if(this.session) this.renderSessionInfo(); }, 60000);
     this.renderNotifBell();
     this.renderBrand();
   },
@@ -1190,6 +1572,7 @@ const App = {
   /* a non-admin user sees their own store's records; a warehouse-only user
      (no store linked) sees the records of their own warehouse */
   inUserScope(r, u){
+    if(this.allStores()) return true;
     if(u.storeId) return r.storeId===u.storeId;
     if(u.warehouseId) return r.warehouseId===u.warehouseId;
     return false;
@@ -1244,7 +1627,8 @@ const App = {
   go(view){
     const meta0 = this.NAV.find(n=>n.id===view);
     if(meta0 && !this.navVisible(meta0)){
-      view = 'dashboard';
+      const first = this.NAV.find(n=>this.navVisible(n));
+      view = first ? first.id : 'dashboard';
     }
     this.view = view;
     document.querySelectorAll('.navlink').forEach(b=>b.classList.toggle('active', b.dataset.view===view));
@@ -1362,7 +1746,7 @@ const App = {
   renderDashboard(){
     const d = this.db;
     const u = this.currentUser();
-    const myReturns = this.isAdmin() ? d.returns : d.returns.filter(r=>this.inUserScope(r,u));
+    const myReturns = this.allStores() ? d.returns : d.returns.filter(r=>this.inUserScope(r,u));
     const monthPrefix = todayStr().slice(0,7);
     const thisMonth = myReturns.filter(r=>r.date && r.date.startsWith(monthPrefix));
     const totalQtyMonth = thisMonth.reduce((a,r)=>a+Number(r.qty||0),0);
@@ -1409,7 +1793,7 @@ const App = {
     return `
       ${emptySetup ? `
       <div class="card" style="border-color:var(--accent-soft);background:var(--accent-soft);margin-bottom:14px;">
-        <b>لبدء الاستخدام:</b> أضف أولاً <a href="#" onclick="App.go('stores');return false;">المحلات</a> و<a href="#" onclick="App.go('items');return false;">الأصناف</a>${this.isAdmin()?` و<a href="#" onclick="App.go('warehouses');return false;">المستودعات</a>`:''}، ثم ابدأ تسجيل <a href="#" onclick="App.go('returns');return false;">المرتجعات</a>.
+        <b>لبدء الاستخدام:</b> أضف أولاً <a href="#" onclick="App.go('stores');return false;">المحلات</a> و<a href="#" onclick="App.go('items');return false;">الأصناف</a>${this.allStores()?` و<a href="#" onclick="App.go('warehouses');return false;">المستودعات</a>`:''}، ثم ابدأ تسجيل <a href="#" onclick="App.go('returns');return false;">المرتجعات</a>.
       </div>` : ''}
 
       <div class="grid grid-4">
@@ -1480,7 +1864,7 @@ const App = {
     const d = this.db;
     const u = this.currentUser();
     const f = this.returnsFilter;
-    let rows = this.isAdmin() ? d.returns.slice() : d.returns.filter(r=>this.inUserScope(r,u));
+    let rows = this.allStores() ? d.returns.slice() : d.returns.filter(r=>this.inUserScope(r,u));
     if(f.store) rows = rows.filter(r=>r.storeId===f.store);
     if(f.item) rows = rows.filter(r=>r.itemId===f.item);
     if(f.reason) rows = rows.filter(r=>r.reason===f.reason);
@@ -1499,14 +1883,14 @@ const App = {
     rows.sort((a,b)=> (b.date+b.time).localeCompare(a.date+a.time));
 
     const totalQty = rows.reduce((a,r)=>a+Number(r.qty||0),0);
-    const canPickStore = this.isAdmin();
+    const canPickStore = this.allStores();
 
     return `
       <div class="section-head">
         <h3>سجل المرتجعات <span class="muted small">(${fmtNum(rows.length)} عملية — إجمالي الكمية ${fmtNum(totalQty)})</span></h3>
         <div class="actions">
           <button class="btn btn-sm" onclick="App.exportCSV(App.buildReturnsExportRows(),'المرتجعات')">تصدير CSV</button>
-          ${this.can('returns.add')? `<button class="btn btn-sm" onclick="App.openImportReturns()">📥 استيراد من إكسيل</button>`:''}
+          ${this.can('returns.import')? `<button class="btn btn-sm" onclick="App.openImportReturns()">📥 استيراد من إكسيل</button>`:''}
           ${this.can('returns.add')? `<button class="btn btn-accent btn-sm" onclick="App.openReturnForm()">+ تسجيل مرتجع جديد</button>`:''}
         </div>
       </div>
@@ -1570,7 +1954,7 @@ const App = {
   },
 
   buildReturnsExportRows(){
-    const rows = this.isAdmin() ? this.db.returns : this.db.returns.filter(r=>r.storeId===this.currentUser().storeId);
+    const rows = this.allStores() ? this.db.returns : this.db.returns.filter(r=>r.storeId===this.currentUser().storeId);
     return [
       ['التاريخ','الوقت','المحل','اسم الصنف','رمز الصنف','الباركود','الكمية','الوحدة','رقم تحويل المرتجع','السبب','تاريخ الصلاحية','المستودع'],
       ...rows.map(r=>{
@@ -1584,7 +1968,7 @@ const App = {
     const d = this.db;
     const editing = id ? d.returns.find(r=>r.id===id) : null;
     const u = this.currentUser();
-    const lockedStore = !this.isAdmin() ? u.storeId : null;
+    const lockedStore = !this.allStores() ? u.storeId : null;
 
     if(d.stores.length===0 || d.items.length===0){
       this.notify('من فضلك أضف محل واحد على الأقل وصنف واحد على الأقل قبل تسجيل مرتجع.');
@@ -1891,10 +2275,11 @@ const App = {
     return m ? `${m[1].padStart(2,'0')}:${m[2]}` : '';
   },
   openSmartImport(kind){
+    if(!this.can(kind+'.import')){ this.notify('مش مسموح لحسابك بالاستيراد — كلّم المدير.'); return; }
     const d = this.db, u = this.currentUser();
     if(d.items.length===0){ this.notify('سجّل الأصناف الأول (من صفحة الأصناف) عشان البرنامج يقدر يتعرف عليها في الملف.'); return; }
     if(d.stores.length===0){ this.notify('أضف محل واحد على الأقل الأول.'); return; }
-    const admin = this.isAdmin();
+    const admin = this.allStores();
     const defStore = (!admin && u.storeId) ? u.storeId : (d.stores[0]||{}).id;
     this._moveImport = {kind, book:null, sheetIdx:0, map:{}, defStore, defWh: this.storeDefaultWarehouse(defStore) || (u.warehouseId||''),
       defDate: todayStr(), defReason: kind==='returns' ? (this.reasons()[0]||'أخرى') : ''};
@@ -1960,7 +2345,7 @@ const App = {
     reader.readAsArrayBuffer(input.files[0]);
   },
   _computeMoveImport(){
-    const st = this._moveImport, d = this.db, u = this.currentUser(), admin = this.isAdmin();
+    const st = this._moveImport, d = this.db, u = this.currentUser(), admin = this.allStores();
     const a = st.book[st.sheetIdx].a, m = st.map;
     const maps = this._stockMaps();
     const storeBy = new Map(); d.stores.forEach(s=>[s.name,s.code].filter(Boolean).forEach(k=>storeBy.set(this._idKey(k), s)));
@@ -2013,7 +2398,7 @@ const App = {
     const box = document.getElementById('moveImportPreview');
     const btn = document.getElementById('moveImportApply');
     if(!box || !st || !st.book) return;
-    const a = st.book[st.sheetIdx].a, admin = this.isAdmin();
+    const a = st.book[st.sheetIdx].a, admin = this.allStores();
     const colName = c=> (a.header[c] && String(a.header[c]).trim()) || ('عمود ' + XLSX_colLetter(c));
     const res = this._computeMoveImport();
     st.result = res;
@@ -2093,14 +2478,14 @@ const App = {
     const d = this.db;
     const u = this.currentUser();
     const f = this.ordersFilter;
-    let rows = this.isAdmin() ? d.orders.slice() : d.orders.filter(r=>r.storeId===u.storeId);
+    let rows = this.allStores() ? d.orders.slice() : d.orders.filter(r=>r.storeId===u.storeId);
     if(f.store) rows = rows.filter(r=>r.storeId===f.store);
     if(f.item) rows = rows.filter(r=>r.itemId===f.item);
     if(f.from) rows = rows.filter(r=>r.date>=f.from);
     if(f.to) rows = rows.filter(r=>r.date<=f.to);
     rows.sort((a,b)=>b.date.localeCompare(a.date));
     const totalQty = rows.reduce((a,r)=>a+Number(r.qty||0),0);
-    const canPickStore = this.isAdmin();
+    const canPickStore = this.allStores();
 
     return `
       <div class="help-box" style="margin-bottom:14px;">
@@ -2109,7 +2494,7 @@ const App = {
       <div class="section-head">
         <h3>سجل الطلبيات <span class="muted small">(${fmtNum(rows.length)} عملية — إجمالي الكمية ${fmtNum(totalQty)})</span></h3>
         <div class="actions">
-          ${this.can('orders.add')? `<button class="btn btn-sm" onclick="App.openSmartImport('orders')">📥 استيراد من إكسيل</button>`:''}
+          ${this.can('orders.import')? `<button class="btn btn-sm" onclick="App.openSmartImport('orders')">📥 استيراد من إكسيل</button>`:''}
           ${this.can('orders.add')? `<button class="btn btn-accent btn-sm" onclick="App.openOrderForm()">+ تسجيل طلبية</button>`:''}
         </div>
       </div>
@@ -2152,7 +2537,7 @@ const App = {
     const d = this.db;
     const editing = id? d.orders.find(o=>o.id===id):null;
     const u = this.currentUser();
-    const lockedStore = !this.isAdmin() ? u.storeId : null;
+    const lockedStore = !this.allStores() ? u.storeId : null;
     if(d.stores.length===0 || d.items.length===0){
       this.notify('من فضلك أضف محل واحد على الأقل وصنف واحد على الأقل أولاً.');
       return;
@@ -2273,7 +2658,7 @@ const App = {
         <div class="actions">
           ${(selCount>0 && this.can('items.edit'))? `<button class="btn btn-danger btn-sm" onclick="App.deleteSelectedItems()">✕ حذف المحدد (${fmtNum(selCount)})</button>`:''}
           <button class="btn btn-sm" onclick="App.exportItemsExcel()">⬇ تصدير الأصناف Excel</button>
-          ${this.can('items.edit')? `<button class="btn btn-sm" onclick="App.openImportItems()">📥 استيراد من إكسيل</button>`:''}
+          ${this.can('items.import')? `<button class="btn btn-sm" onclick="App.openImportItems()">📥 استيراد من إكسيل</button>`:''}
           ${this.can('items.edit')? `<button class="btn btn-accent btn-sm" onclick="App.openItemForm()">+ إضافة صنف</button>`:''}
         </div></div>
 
@@ -2372,7 +2757,7 @@ const App = {
   renderInventory(){
     const d = this.db;
     const u = this.currentUser();
-    const admin = this.isAdmin();
+    const admin = this.allStores();
     const f = this.inventoryFilter;
 
     let locType = f.locType;
@@ -2396,7 +2781,7 @@ const App = {
 
     return `
       <div class="section-head"><h3>المخزون</h3>
-        ${this.can('inventory.edit') && locId ? `<div class="actions">
+        ${this.can('inventory.import') && locId ? `<div class="actions">
           <button class="btn btn-accent btn-sm" onclick="App.openStockImport()">📥 رفع الأرصدة من إكسيل</button>
           <button class="btn btn-sm" onclick="App.downloadStockTemplate()">⬇ نموذج إكسيل فاضي</button>
         </div>` : ''}
@@ -2482,6 +2867,7 @@ const App = {
     this.saveFile(`نموذج_رفع_المخزون_${locName||''}.xlsx`, new Blob([out], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
   },
   openStockImport(){
+    if(!this.can('inventory.import')){ this.notify('مش مسموح لحسابك برفع الأرصدة — كلّم المدير.'); return; }
     const f = this.inventoryFilter;
     const locName = f.locType==='store' ? this.storeName(f.locId) : this.whName(f.locId);
     this._stockImport = {locType:f.locType, locId:f.locId, mode:'replace', book:null, sheetIdx:0, qtyCol:null, useLocCol:true};
@@ -2490,7 +2876,7 @@ const App = {
       <h3>📥 رفع أرصدة المخزون من إكسيل</h3>
       <div class="help-box" style="margin-bottom:14px;">
         ارفع <b>أي شيت إكسيل عندك</b> زي ما هو — مش لازم نموذج معيّن. البرنامج بيدوّر لوحده على عمود الصنف (كود أو باركود أو اسم) وعمود الكمية في أي مكان في الملف وفي أي شيت، ويطابق الأصناف مع المسجلة عندك.<br>
-        الموقع: <b>${esc(locName||'—')}</b> (${f.locType==='store'?'محل':'مستودع'})${this.isAdmin()?' — ولو الشيت فيه عمود باسم الفرع/المستودع، كل صف هيروح لمكانه تلقائيًا.':'.'}
+        الموقع: <b>${esc(locName||'—')}</b> (${f.locType==='store'?'محل':'مستودع'})${this.allStores()?' — ولو الشيت فيه عمود باسم الفرع/المستودع، كل صف هيروح لمكانه تلقائيًا.':'.'}
       </div>
       <div class="field">
         <label>الكمية اللي في الملف تعمل إيه؟</label>
@@ -2629,7 +3015,7 @@ const App = {
     const st = this._stockImport;
     const sh = st.book[st.sheetIdx], a = sh.a;
     const maps = this._stockMaps();
-    const admin = this.isAdmin();
+    const admin = this.allStores();
     const useLoc = admin && st.useLocCol && a.locCol!=null;
     const agg = new Map(); const unmatched = new Map(); let emptyQty = 0, unmatchedLoc = 0;
     if(st.qtyCol==null) return {rows:[], unmatched:[], emptyQty:0, unmatchedLoc:0, useLoc};
@@ -2680,7 +3066,7 @@ const App = {
         </div>
         <div class="small muted" style="margin-top:8px;">
           عمود الصنف: <b>${a.idCols.length? a.idCols.slice(0,2).map(c=>esc(colName(c))).join(' / ') : '<span style="color:var(--bad)">مش لاقي أصناف مسجلة في الشيت ده</span>'}</b>
-          ${a.locCol!=null && this.isAdmin()? ` — عمود الموقع: <b>${esc(colName(a.locCol))}</b> <label style="display:inline-flex;gap:4px;align-items:center;margin-inline-start:8px;"><input type="checkbox" style="width:auto;" ${st.useLocCol?'checked':''} onchange="App._stockImport.useLocCol=this.checked;App.renderStockImportPreview()"> وزّع حسب العمود ده</label>`:''}
+          ${a.locCol!=null && this.allStores()? ` — عمود الموقع: <b>${esc(colName(a.locCol))}</b> <label style="display:inline-flex;gap:4px;align-items:center;margin-inline-start:8px;"><input type="checkbox" style="width:auto;" ${st.useLocCol?'checked':''} onchange="App._stockImport.useLocCol=this.checked;App.renderStockImportPreview()"> وزّع حسب العمود ده</label>`:''}
         </div>
       </div>
       <div class="grid grid-3" style="margin:6px 0 12px;">
@@ -2718,6 +3104,7 @@ const App = {
 
   /* ---------------- EXPORT REGISTERED ITEMS TO EXCEL ---------------- */
   exportItemsExcel(){
+    if(!this.can('export.excel')){ this.notify('مش مسموح لحسابك بالتحميل ده — كلّم المدير.'); return; }
     const d = this.db;
     const f = this.itemsFilter;
     let rows = d.items.slice();
@@ -2803,6 +3190,7 @@ const App = {
     return {hdrIdx, header, data, nCols, map, score: hdrIdx>=0? best : 0};
   },
   openImportItems(){
+    if(!this.can('items.import')){ this.notify('مش مسموح لحسابك بالاستيراد — كلّم المدير.'); return; }
     this._itemsImport = {book:null, sheetIdx:0, map:{}, existing:'fill'};
     this.openModal(`
       <button class="modal-close" onclick="App.closeModal()">✕</button>
@@ -3142,7 +3530,7 @@ const App = {
       <div class="modal-actions">
         <button class="btn btn-accent" onclick="App.saveJob('${editing?editing.id:''}')">حفظ</button>
         <button class="btn" onclick="App.closeModal()">إلغاء</button>
-      </div>`);
+      </div>`, true);
   },
   saveJob(id){
     const name = document.getElementById('j_name').value.trim();
@@ -3193,107 +3581,53 @@ const App = {
   },
 
   /* shared checkbox block used both on a job template and on a single user's
-     custom permissions — same field ids, so read/apply helpers work for both */
+     custom permissions — built from PERM_SCHEMA, same ids for read/apply */
   permsCheckboxesHtml(p){
+    const P = normalizePerms(p);
+    const id = (g,k)=>`perm_${g}_${k.replace(/[^a-zA-Z0-9]/g,'_')}`;
     return `
-      <div class="grid grid-2" style="margin-top:10px;">
-        <div class="card" style="padding:12px 14px;">
-          <b class="small">المرتجعات</b>
-          <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
-            <label><input type="checkbox" id="perm_returns_view" ${p.returns.view?'checked':''}> عرض</label>
-            <label><input type="checkbox" id="perm_returns_add" ${p.returns.add?'checked':''}> إضافة / استيراد</label>
-            <label><input type="checkbox" id="perm_returns_edit" ${p.returns.edit?'checked':''}> تعديل</label>
-            <label><input type="checkbox" id="perm_returns_delete" ${p.returns.delete?'checked':''}> حذف</label>
-          </div>
-        </div>
-        <div class="card" style="padding:12px 14px;">
-          <b class="small">الطلبيات</b>
-          <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
-            <label><input type="checkbox" id="perm_orders_view" ${p.orders.view?'checked':''}> عرض</label>
-            <label><input type="checkbox" id="perm_orders_add" ${p.orders.add?'checked':''}> إضافة</label>
-            <label><input type="checkbox" id="perm_orders_edit" ${p.orders.edit?'checked':''}> تعديل</label>
-            <label><input type="checkbox" id="perm_orders_delete" ${p.orders.delete?'checked':''}> حذف</label>
-          </div>
-        </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 4px;">
+        <button type="button" class="btn btn-sm" onclick="App.setAllPerms(true)">✓ تحديد الكل</button>
+        <button type="button" class="btn btn-sm" onclick="App.setAllPerms(false)">✕ إلغاء الكل</button>
       </div>
-      <div class="grid grid-2" style="margin-top:10px;">
-        <div class="card" style="padding:12px 14px;"><label><input type="checkbox" id="perm_reports_view" ${p.reports.view?'checked':''}> عرض التقارير</label></div>
-        <div class="card" style="padding:12px 14px;">
-          <b class="small">الأصناف</b>
-          <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
-            <label><input type="checkbox" id="perm_items_view" ${p.items.view?'checked':''}> عرض الأصناف</label>
-            <label><input type="checkbox" id="perm_items_edit" ${p.items.edit?'checked':''}> إدارة الأصناف (إضافة/تعديل/حذف/استيراد)</label>
+      <div class="perm-grid">
+        ${PERM_SCHEMA.map(grp=>`
+        <div class="card perm-card" style="padding:12px 14px;${grp.keys.length>6?'grid-column:1/-1;':''}">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <b class="small">${grp.label}</b>
+            <span style="display:flex;gap:4px;">
+              <button type="button" class="icon-btn" title="تحديد الكل" onclick="App.setGroupPerms('${grp.g}',true)">✓</button>
+              <button type="button" class="icon-btn" title="إلغاء الكل" onclick="App.setGroupPerms('${grp.g}',false)">✕</button>
+            </span>
           </div>
-        </div>
-      </div>
-      <div class="grid grid-2" style="margin-top:10px;">
-        <div class="card" style="padding:12px 14px;">
-          <b class="small">المخزون (الكميات المتاحة)</b>
-          <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
-            <label><input type="checkbox" id="perm_inventory_view" ${p.inventory.view?'checked':''}> عرض أرصدة المخزون</label>
-            <label><input type="checkbox" id="perm_inventory_edit" ${p.inventory.edit?'checked':''}> تعديل/ضبط أرصدة المخزون يدويًا</label>
+          <div style="margin-top:8px;display:${grp.keys.length>6?'grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))':'flex;flex-direction:column'};gap:6px;">
+            ${grp.keys.map(key=>`<label style="display:flex;gap:6px;align-items:center;cursor:pointer;"><input type="checkbox" style="width:auto;flex:none;" data-perm="${grp.g}.${key.k}" id="${id(grp.g,key.k)}" ${P[grp.g][key.k]?'checked':''}> ${esc(key.label)}</label>`).join('')}
           </div>
-        </div>
-        <div class="card" style="padding:12px 14px;">
-          <b class="small">التكاليف والمالية</b>
-          <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
-            <label><input type="checkbox" id="perm_finance_view" ${p.finance.view?'checked':''}> عرض تكاليف الأصناف وتقارير التكاليف/الخسائر</label>
-            <label><input type="checkbox" id="perm_finance_edit" ${p.finance.edit?'checked':''}> تعديل تكلفة الأصناف</label>
-          </div>
-        </div>
-      </div>
-      <div class="grid grid-2" style="margin-top:10px;">
-        <div class="card" style="padding:12px 14px;">
-          <b class="small">المحلات</b>
-          <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
-            <label><input type="checkbox" id="perm_stores_view" ${p.stores.view?'checked':''}> عرض المحلات</label>
-            <label><input type="checkbox" id="perm_stores_edit" ${p.stores.edit?'checked':''}> إضافة/تعديل/حذف المحلات</label>
-          </div>
-        </div>
-        <div class="card" style="padding:12px 14px;">
-          <b class="small">المستودعات</b>
-          <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
-            <label><input type="checkbox" id="perm_warehouses_view" ${p.warehouses.view?'checked':''}> عرض المستودعات</label>
-            <label><input type="checkbox" id="perm_warehouses_edit" ${p.warehouses.edit?'checked':''}> إضافة/تعديل/حذف المستودعات</label>
-          </div>
-        </div>
-      </div>
-      <div class="grid grid-2" style="margin-top:10px;">
-        <div class="card" style="padding:12px 14px;">
-          <b class="small">ربط المحلات بالمستودعات</b>
-          <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px;">
-            <label><input type="checkbox" id="perm_links_view" ${p.links.view?'checked':''}> عرض أي مستودع مرتبط بأي محل</label>
-            <label><input type="checkbox" id="perm_links_edit" ${p.links.edit?'checked':''}> تحديد/تغيير الربط بين المحلات والمستودعات</label>
-          </div>
-        </div>
+        </div>`).join('')}
       </div>
     `;
   },
+  setGroupPerms(g, val){
+    document.querySelectorAll(`input[data-perm^="${g}."]`).forEach(el=>{ el.checked = val; });
+  },
+  setAllPerms(val){
+    document.querySelectorAll('input[data-perm]').forEach(el=>{ el.checked = val; });
+  },
   readPermsCheckboxes(){
-    const cb = id => !!document.getElementById(id) && document.getElementById(id).checked;
-    return {
-      returns:{ view: cb('perm_returns_view'), add: cb('perm_returns_add'), edit: cb('perm_returns_edit'), delete: cb('perm_returns_delete') },
-      orders:{ view: cb('perm_orders_view'), add: cb('perm_orders_add'), edit: cb('perm_orders_edit'), delete: cb('perm_orders_delete') },
-      reports:{ view: cb('perm_reports_view') },
-      items:{ view: cb('perm_items_view'), edit: cb('perm_items_edit') },
-      inventory:{ view: cb('perm_inventory_view'), edit: cb('perm_inventory_edit') },
-      finance:{ view: cb('perm_finance_view'), edit: cb('perm_finance_edit') },
-      stores:{ view: cb('perm_stores_view'), edit: cb('perm_stores_edit') },
-      warehouses:{ view: cb('perm_warehouses_view'), edit: cb('perm_warehouses_edit') },
-      links:{ view: cb('perm_links_view'), edit: cb('perm_links_edit') },
-    };
+    const out = {};
+    PERM_SCHEMA.forEach(grp=>{ out[grp.g] = {}; grp.keys.forEach(key=>{ out[grp.g][key.k] = false; }); });
+    document.querySelectorAll('input[data-perm]').forEach(el=>{
+      const [g,k] = el.getAttribute('data-perm').split('.');
+      if(out[g]) out[g][k] = el.checked;
+    });
+    return out;
   },
   applyPermsToCheckboxes(p){
-    const set = (id,val) => { const el=document.getElementById(id); if(el) el.checked = !!val; };
-    set('perm_returns_view',p.returns.view); set('perm_returns_add',p.returns.add); set('perm_returns_edit',p.returns.edit); set('perm_returns_delete',p.returns.delete);
-    set('perm_orders_view',p.orders.view); set('perm_orders_add',p.orders.add); set('perm_orders_edit',p.orders.edit); set('perm_orders_delete',p.orders.delete);
-    set('perm_reports_view',p.reports.view);
-    set('perm_items_view',p.items.view); set('perm_items_edit',p.items.edit);
-    set('perm_inventory_view',p.inventory.view); set('perm_inventory_edit',p.inventory.edit);
-    set('perm_finance_view',p.finance.view); set('perm_finance_edit',p.finance.edit);
-    set('perm_stores_view',p.stores.view); set('perm_stores_edit',p.stores.edit);
-    set('perm_warehouses_view',p.warehouses.view); set('perm_warehouses_edit',p.warehouses.edit);
-    set('perm_links_view',p.links.view); set('perm_links_edit',p.links.edit);
+    const P = normalizePerms(p);
+    document.querySelectorAll('input[data-perm]').forEach(el=>{
+      const [g,k] = el.getAttribute('data-perm').split('.');
+      el.checked = !!(P[g] && P[g][k]);
+    });
   },
   onUserJobSelect(){
     const sel = document.getElementById('u_job');
@@ -3374,6 +3708,10 @@ const App = {
         </div>
       </div>
       <div class="small muted" style="margin-top:-6px;margin-bottom:10px;">لازم تختار محل أو مستودع (على الأقل واحد منهم) — إلا لو المستخدم "مدير عام".</div>
+      <div class="form-row">
+        <div class="field"><label>الاسم في الدايرة (عربي — اختياري)</label><input type="text" id="u_avAr" value="${editing?esc(editing.avatarNameAr||''):''}" placeholder="مثلًا: أحمد"></div>
+        <div class="field"><label>الاسم في الدايرة (إنجليزي — اختياري)</label><input type="text" id="u_avEn" dir="ltr" value="${editing?esc(editing.avatarNameEn||''):''}" placeholder="e.g. Ahmed"></div>
+      </div>
       ${this.isOwner()? `<div class="card" style="padding:10px 12px;margin-bottom:12px;">
         <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin:0;">
           <input type="checkbox" id="u_showTransfers" style="width:auto;flex:none;" ${editing&&editing.showTransfers?'checked':''}>
@@ -3397,7 +3735,7 @@ const App = {
       <div class="modal-actions">
         <button class="btn btn-accent" onclick="App.saveUser('${editing?editing.id:''}')">حفظ</button>
         <button class="btn" onclick="App.closeModal()">إلغاء</button>
-      </div>`);
+      </div>`, true);
   },
   saveUser(id){
     const name=document.getElementById('u_name').value.trim();
@@ -3409,6 +3747,8 @@ const App = {
     const phone=document.getElementById('u_phone').value.trim();
     const storeId=role==='admin'?null:(document.getElementById('u_store').value||null);
     const warehouseId=role==='admin'?null:(document.getElementById('u_warehouse').value||null);
+    const avatarNameAr = (document.getElementById('u_avAr')||{value:''}).value.trim();
+    const avatarNameEn = (document.getElementById('u_avEn')||{value:''}).value.trim();
     const stEl = document.getElementById('u_showTransfers');
     const showTransfers = stEl ? stEl.checked : false;
     if(!username){this.notify('اكتب اسم مستخدم.');return;}
@@ -3441,12 +3781,12 @@ const App = {
 
     if(id){
       const u = this.db.users.find(x=>x.id===id);
-      Object.assign(u,{name,username,role,storeId,warehouseId,jobId,jobTitle,email,phone,showTransfers,permissions:role==='store'?permissions:null});
+      Object.assign(u,{name,username,role,storeId,warehouseId,jobId,jobTitle,email,phone,showTransfers,avatarNameAr,avatarNameEn,permissions:role==='store'?permissions:null});
       if(pass) u.password=pass;
       this.logActivity(`عدّل بيانات مستخدم "${username}"${pass?' (وغيّر كلمة المرور)':''}`);
     }else{
       if(!pass){this.notify('اكتب كلمة مرور للمستخدم الجديد.');return;}
-      this.db.users.push({id:uid(),name,username,password:pass,role,storeId,warehouseId,jobId,jobTitle,email,phone,showTransfers,permissions});
+      this.db.users.push({id:uid(),name,username,password:pass,role,storeId,warehouseId,jobId,jobTitle,email,phone,showTransfers,avatarNameAr,avatarNameEn,permissions});
       this.logActivity(`أضاف مستخدم جديد "${username}"`);
     }
     this.closeModal(); this.refresh(); this.buildNav();
@@ -3639,6 +3979,9 @@ const App = {
   ===================================================================== */
   reportsTab:'item-period',
   reportTabs(){
+    return this._allReportTabs().filter(t=>this.can('reportTabs.'+t.id));
+  },
+  _allReportTabs(){
     return [
       {id:'lookup', label:'🔎 بحث تفصيلي عن صنف'},
       {id:'custom', label:'تقرير شامل (PDF / إكسيل)'},
@@ -3655,15 +3998,17 @@ const App = {
   },
   renderReports(){
     const tabs=this.reportTabs();
-    const showExport = this.reportsTab!=='custom';
+    if(!tabs.length) return `<div class="empty">مفيش تقارير متاحة لحسابك — كلّم المدير.</div>`;
+    if(!tabs.some(t=>t.id===this.reportsTab)) this.reportsTab = tabs[0].id;
+    const showExport = this.reportsTab!=='custom' && (this.can('export.pdf') || this.can('export.excel'));
     return `
       <div class="pill-tabs">
         ${tabs.map(t=>`<button class="pill-tab ${this.reportsTab===t.id?'active':''}" onclick="App.reportsTab='${t.id}';App.render()">${t.label}</button>`).join('')}
       </div>
       ${showExport? `<div class="report-export-bar">
         <span class="small muted">تصدير التقرير المعروض:</span>
-        <button class="btn btn-accent btn-sm" onclick="App.printCurrentReport()">📄 PDF</button>
-        <button class="btn btn-sm" onclick="App.excelCurrentReport()">📊 Excel</button>
+        ${this.can('export.pdf')? `<button class="btn btn-accent btn-sm" onclick="App.printCurrentReport()">📄 PDF</button>`:''}
+        ${this.can('export.excel')? `<button class="btn btn-sm" onclick="App.excelCurrentReport()">📊 Excel</button>`:''}
       </div>`:''}
       <div id="reportBody">${this.renderReportBody()}</div>
     `;
@@ -3689,15 +4034,15 @@ const App = {
   rp_costs:{storeId:'', from:'', to:''},
   resetCostsFilter(){
     const u = this.currentUser();
-    this.rp_costs = { storeId: this.isAdmin() ? '' : (u.storeId||''), from:'', to:'' };
+    this.rp_costs = { storeId: this.allStores() ? '' : (u.storeId||''), from:'', to:'' };
     this.reReport();
   },
   reportCostsAndLosses(){
     const d=this.db, u=this.currentUser();
     const st=this.rp_costs;
-    if(!this.isAdmin() && !st.storeId) st.storeId = u.storeId;
+    if(!this.allStores() && !st.storeId) st.storeId = u.storeId;
 
-    let rows = this.isAdmin() ? d.returns.slice() : d.returns.filter(r=>this.inUserScope(r,u));
+    let rows = this.allStores() ? d.returns.slice() : d.returns.filter(r=>this.inUserScope(r,u));
     if(st.storeId) rows = rows.filter(r=>r.storeId===st.storeId);
     if(st.from) rows = rows.filter(r=>r.date>=st.from);
     if(st.to) rows = rows.filter(r=>r.date<=st.to);
@@ -3736,7 +4081,7 @@ const App = {
 
     return `
       <div class="filters card" style="margin-bottom:14px;">
-        ${this.isAdmin()? `<div class="field"><label>المحل</label><select onchange="App.rp_costs.storeId=this.value;App.reReport()">
+        ${this.allStores()? `<div class="field"><label>المحل</label><select onchange="App.rp_costs.storeId=this.value;App.reReport()">
           <option value="">كل المحلات</option>
           ${d.stores.map(s=>`<option value="${s.id}" ${st.storeId===s.id?'selected':''}>${s.code?'['+esc(s.code)+'] ':''}${esc(s.name)}</option>`).join('')}
         </select></div>` : ''}
@@ -3766,7 +4111,7 @@ const App = {
 
     // if the query matches a transfer number, jump straight to that return's item
     if(q && !st.itemId){
-      const scopedAll = this.isAdmin()? d.returns : d.returns.filter(r=>this.inUserScope(r,u));
+      const scopedAll = this.allStores()? d.returns : d.returns.filter(r=>this.inUserScope(r,u));
       const byTransfer = scopedAll.find(r=>(r.transferNo||'').toLowerCase()===q);
       if(byTransfer){ st.itemId = byTransfer.itemId; }
     }
@@ -3783,7 +4128,7 @@ const App = {
     let historyHtml = '';
     if(st.itemId){
       const it = d.items.find(i=>i.id===st.itemId);
-      const scoped = this.isAdmin()? d.returns : d.returns.filter(r=>this.inUserScope(r,u));
+      const scoped = this.allStores()? d.returns : d.returns.filter(r=>this.inUserScope(r,u));
       const rows = scoped.filter(r=>r.itemId===st.itemId).sort((a,b)=> (b.date+(b.time||'')).localeCompare(a.date+(a.time||'')));
       const totalQty = rows.reduce((a,r)=>a+Number(r.qty||0),0);
 
@@ -3878,7 +4223,7 @@ const App = {
   },
   exportItemLookupRows(){
     const d=this.db, u=this.currentUser();
-    const scoped = this.isAdmin()? d.returns : d.returns.filter(r=>this.inUserScope(r,u));
+    const scoped = this.allStores()? d.returns : d.returns.filter(r=>this.inUserScope(r,u));
     const rows = scoped.filter(r=>r.itemId===this.rp_lookup.itemId).sort((a,b)=> (b.date+(b.time||'')).localeCompare(a.date+(a.time||'')));
     return [['التاريخ','الوقت','الفرع','الكمية','الوحدة','رقم تحويل المرتجع','السبب','تاريخ الصلاحية','المستودع'],
       ...rows.map(r=>[r.date,r.time,this.storeName(r.storeId),r.qty,this.returnUnit(r),r.transferNo,r.reason,r.expiry,this.whName(r.warehouseId)])];
@@ -3889,7 +4234,7 @@ const App = {
   computeCustomReportData(){
     const d=this.db; const u=this.currentUser();
     const st=this.rp_custom;
-    const scoped = this.isAdmin()? d.returns.slice() : d.returns.filter(r=>this.inUserScope(r,u));
+    const scoped = this.allStores()? d.returns.slice() : d.returns.filter(r=>this.inUserScope(r,u));
     let rows = scoped.filter(r=> r.date>=st.from && r.date<=st.to);
     if(st.storeId) rows = rows.filter(r=>r.storeId===st.storeId);
     if(st.itemId) rows = rows.filter(r=>r.itemId===st.itemId);
@@ -4019,15 +4364,15 @@ const App = {
     const d=this.db; const u=this.currentUser();
     const st=this.rp_custom;
     if(!st.from){ st.from = todayStr().slice(0,8)+'01'; st.to = todayStr(); }
-    if(!this.isAdmin()) st.storeId = u.storeId;
+    if(!this.allStores()) st.storeId = u.storeId;
     const data = this.computeCustomReportData();
     const meta = this.reportMeta(data);
     const settings = meta.settings;
 
     return `
     <div class="card">
-      <div class="form-row" style="grid-template-columns:${this.isAdmin()?'1fr 1fr 0.8fr 0.8fr':'1fr 0.8fr 0.8fr'};align-items:end;">
-        ${this.isAdmin()? `<div class="field"><label>الفرع</label><select onchange="App.rp_custom.storeId=this.value;App.reReport()">
+      <div class="form-row" style="grid-template-columns:${this.allStores()?'1fr 1fr 0.8fr 0.8fr':'1fr 0.8fr 0.8fr'};align-items:end;">
+        ${this.allStores()? `<div class="field"><label>الفرع</label><select onchange="App.rp_custom.storeId=this.value;App.reReport()">
           <option value="">كل الفروع</option>
           ${d.stores.map(s=>`<option value="${s.id}" ${st.storeId===s.id?'selected':''}>${s.code?'['+esc(s.code)+'] ':''}${esc(s.name)}</option>`).join('')}
         </select></div>` : `<div class="field"><label>الفرع</label><input type="text" value="${esc(this.storeName(st.storeId)||'')}" disabled></div>`}
@@ -4135,6 +4480,7 @@ const App = {
           `).join('')}
         </div>
       </div>
+      ${this.sidebarSettingsCardHtml()}
 
       <div class="grid grid-2" style="margin-top:14px;align-items:start;">
         <div class="card">
@@ -4201,6 +4547,9 @@ const App = {
           <div class="field"><label>Template ID</label><input type="text" id="ej_templateId" value="${esc((settings.emailjs&&settings.emailjs.templateId)||'')}" readonly disabled style="opacity:.65;cursor:not-allowed;"></div>
         </div>
         <div class="field"><label>Public Key</label><input type="text" id="ej_publicKey" value="${esc((settings.emailjs&&settings.emailjs.publicKey)||'')}" readonly disabled style="opacity:.65;cursor:not-allowed;"></div>
+        <div class="field" style="max-width:520px;margin-top:6px;"><label>اسم المرسل اللي بيظهر للمستخدمين في الإيميل</label>
+          <input type="text" id="ej_fromName" value="${esc(settings.emailFromName||'')}" placeholder="${esc(this.emailSenderName())}" onchange="App.saveEmailFromName()"></div>
+        <div class="small muted" style="margin:-4px 0 10px;">عشان يظهر، لازم خانة <b>From Name</b> في قالب EmailJS يكون مكتوب فيها <code>{{from_name}}</code>.</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-sm" onclick="App.testEmailJSSettings()">📧 إرسال بريد تجريبي لبريدي</button>
         </div>
@@ -4489,6 +4838,7 @@ const App = {
     this.notify('تم تصفير كل البيانات والبدء من جديد.');
   },
   exportCustomExcel(mode){
+    if(!this.can('export.excel')){ this.notify('مش مسموح لحسابك بالتحميل ده — كلّم المدير.'); return; }
     const data = this.computeCustomReportData();
     const d = this.db;
     const meta = this.reportMeta(data);
@@ -4599,6 +4949,7 @@ const App = {
      zero restrictions and produces a real, selectable, correctly-shaped
      Arabic PDF via the browser's own native "Save as PDF" print target. */
   downloadPrintableReport(mode){
+    if(!this.can('export.pdf')){ this.notify('مش مسموح لحسابك بالتحميل ده — كلّم المدير.'); return; }
     const d = this.db, u = this.currentUser();
     const data = this.computeCustomReportData();
     const settings = d.settings || {companyName:'', logo:''};
@@ -4725,7 +5076,7 @@ const App = {
 
   rp_item:{itemId:'', p1from:'', p1to:'', p2from:'', p2to:''},
   reportItemPeriod(){
-    const d=this.db; const u=this.currentUser(); const scoped = this.isAdmin()? d.returns : d.returns.filter(r=>this.inUserScope(r,u));
+    const d=this.db; const u=this.currentUser(); const scoped = this.allStores()? d.returns : d.returns.filter(r=>this.inUserScope(r,u));
     const st = this.rp_item;
     // default period1 = current month, period2 = previous month, same length
     if(!st.p1from){ st.p1from = todayStr().slice(0,8)+'01'; st.p1to = todayStr(); }
@@ -4814,7 +5165,7 @@ const App = {
     `;
   },
   exportItemPeriodRows(){
-    const d=this.db; const u=this.currentUser(); const scoped = this.isAdmin()? d.returns : d.returns.filter(r=>this.inUserScope(r,u));
+    const d=this.db; const u=this.currentUser(); const scoped = this.allStores()? d.returns : d.returns.filter(r=>this.inUserScope(r,u));
     const st=this.rp_item;
     const rows = scoped.filter(r=>r.itemId===st.itemId && r.date>=st.p1from && r.date<=st.p1to);
     return [['التاريخ','الوقت','المحل','الكمية','رقم التحويل','السبب','تاريخ الصلاحية'],
@@ -4825,7 +5176,7 @@ const App = {
   reportByStore(){
     const d=this.db; const u=this.currentUser();
     const st=this.rp_store;
-    if(!st.storeId){ st.storeId = this.isAdmin() ? (d.stores[0]?d.stores[0].id:'') : u.storeId; }
+    if(!st.storeId){ st.storeId = this.allStores() ? (d.stores[0]?d.stores[0].id:'') : u.storeId; }
     if(!st.from){ st.from = todayStr().slice(0,8)+'01'; st.to = todayStr(); }
     const rows = d.returns.filter(r=>r.storeId===st.storeId && r.date>=st.from && r.date<=st.to);
     const totalQty = rows.reduce((a,r)=>a+Number(r.qty||0),0);
@@ -4841,7 +5192,7 @@ const App = {
     return `
     <div class="card">
       <div class="form-row" style="grid-template-columns:1.4fr 1fr 1fr;align-items:end;">
-        ${this.isAdmin()? `<div class="field"><label>المحل</label><select onchange="App.rp_store.storeId=this.value;App.reReport()">
+        ${this.allStores()? `<div class="field"><label>المحل</label><select onchange="App.rp_store.storeId=this.value;App.reReport()">
           ${d.stores.map(s=>`<option value="${s.id}" ${st.storeId===s.id?'selected':''}>${s.code?'['+esc(s.code)+'] ':''}${esc(s.name)}</option>`).join('')}
         </select></div>` : `<div class="field"><label>المحل</label><input type="text" value="${esc(this.storeName(st.storeId)||'')}" disabled></div>`}
         <div class="field"><label>من تاريخ</label><input type="date" value="${st.from}" onchange="App.rp_store.from=this.value;App.reReport()"></div>
@@ -4879,7 +5230,7 @@ const App = {
   reportOrdersVsReturns(){
     const d=this.db; const u=this.currentUser();
     const st=this.rp_ovr;
-    if(!st.storeId) st.storeId = this.isAdmin() ? (d.stores[0]?d.stores[0].id:'') : u.storeId;
+    if(!st.storeId) st.storeId = this.allStores() ? (d.stores[0]?d.stores[0].id:'') : u.storeId;
     if(!st.itemId) st.itemId = d.items[0]?d.items[0].id:'';
     if(!st.from){ st.from = todayStr().slice(0,8)+'01'; st.to = todayStr(); }
 
@@ -4896,7 +5247,7 @@ const App = {
     return `
     <div class="card">
       <div class="form-row" style="grid-template-columns:1fr 1fr 0.8fr 0.8fr;align-items:end;">
-        ${this.isAdmin()? `<div class="field"><label>المحل</label><select onchange="App.rp_ovr.storeId=this.value;App.reReport()">
+        ${this.allStores()? `<div class="field"><label>المحل</label><select onchange="App.rp_ovr.storeId=this.value;App.reReport()">
           ${d.stores.map(s=>`<option value="${s.id}" ${st.storeId===s.id?'selected':''}>${s.code?'['+esc(s.code)+'] ':''}${esc(s.name)}</option>`).join('')}
         </select></div>` : `<div class="field"><label>المحل</label><input type="text" value="${esc(this.storeName(st.storeId)||'')}" disabled></div>`}
         <div class="field"><label>الصنف</label><select onchange="App.rp_ovr.itemId=this.value;App.reReport()">
@@ -4924,7 +5275,7 @@ const App = {
 
   reportExpiry(){
     const d=this.db; const u=this.currentUser();
-    let rows = this.isAdmin()? d.returns.slice() : d.returns.filter(r=>this.inUserScope(r,u));
+    let rows = this.allStores()? d.returns.slice() : d.returns.filter(r=>this.inUserScope(r,u));
     rows = rows.filter(r=>r.expiry);
     rows.sort((a,b)=>a.expiry.localeCompare(b.expiry));
     const now = new Date(new Date().setHours(0,0,0,0));
@@ -4947,7 +5298,7 @@ const App = {
   },
   exportExpiryRows(){
     const d=this.db; const u=this.currentUser();
-    let rows = this.isAdmin()? d.returns.slice() : d.returns.filter(r=>this.inUserScope(r,u));
+    let rows = this.allStores()? d.returns.slice() : d.returns.filter(r=>this.inUserScope(r,u));
     rows = rows.filter(r=>r.expiry);
     return [['الصنف','المحل','تاريخ الترجيع','تاريخ الصلاحية','السبب'],
       ...rows.map(r=>[this.itemName(r.itemId),this.storeName(r.storeId),r.date,r.expiry,r.reason])];
@@ -4958,7 +5309,7 @@ const App = {
   reportStock(){
     const d=this.db, u=this.currentUser();
     const st=this.rp_stock;
-    const admin=this.isAdmin();
+    const admin=this.allStores();
     if(!admin && !st.storeId) st.storeId = u.storeId;
     const availStores = admin ? d.stores : d.stores.filter(s=>s.id===u.storeId);
     const scopeStores = st.storeId ? availStores.filter(s=>s.id===st.storeId) : availStores;
@@ -5015,7 +5366,7 @@ const App = {
     `;
   },
   exportStockRows(){
-    const d=this.db, u=this.currentUser(); const st=this.rp_stock; const admin=this.isAdmin();
+    const d=this.db, u=this.currentUser(); const st=this.rp_stock; const admin=this.allStores();
     const availStores = admin ? d.stores : d.stores.filter(s=>s.id===u.storeId);
     const scopeStores = st.storeId ? availStores.filter(s=>s.id===st.storeId) : availStores;
     const rows=[];
@@ -5028,7 +5379,7 @@ const App = {
   reportMovers(){
     const d=this.db, u=this.currentUser();
     const st=this.rp_movers;
-    const admin=this.isAdmin();
+    const admin=this.allStores();
     if(!admin && !st.storeId) st.storeId = u.storeId;
     if(!st.from){ st.from = todayStr().slice(0,8)+'01'; st.to = todayStr(); }
 
@@ -5060,7 +5411,7 @@ const App = {
     `;
   },
   computeMoversList(){
-    const d=this.db, u=this.currentUser(); const st=this.rp_movers; const admin=this.isAdmin();
+    const d=this.db, u=this.currentUser(); const st=this.rp_movers; const admin=this.allStores();
     const scoped = admin ? d.returns : d.returns.filter(r=>this.inUserScope(r,u));
     const periodRows = scoped.filter(r=> (!st.storeId || r.storeId===st.storeId) && r.date>=st.from && r.date<=st.to);
     const byItem = {};
@@ -5084,7 +5435,7 @@ const App = {
   reportBranchPerformance(){
     const d=this.db, u=this.currentUser();
     const st=this.rp_branch;
-    const admin=this.isAdmin();
+    const admin=this.allStores();
     if(!st.from){ st.from = todayStr().slice(0,8)+'01'; st.to = todayStr(); }
 
     const ranking = this.computeBranchPerfRanking();
@@ -5110,7 +5461,7 @@ const App = {
     `;
   },
   computeBranchPerfRanking(){
-    const d=this.db, u=this.currentUser(); const st=this.rp_branch; const admin=this.isAdmin();
+    const d=this.db, u=this.currentUser(); const st=this.rp_branch; const admin=this.allStores();
     const stores = admin ? d.stores : d.stores.filter(s=>s.id===u.storeId);
     const fromD = new Date(st.from), toD = new Date(st.to);
     const lenDays = Math.max(1, Math.round((toD-fromD)/86400000)+1);
@@ -5142,13 +5493,13 @@ const App = {
   reportRecordLookup(){
     const d=this.db, u=this.currentUser();
     const st=this.rp_record;
-    const scoped = this.isAdmin()? d.returns : d.returns.filter(r=>this.inUserScope(r,u));
+    const scoped = this.allStores()? d.returns : d.returns.filter(r=>this.inUserScope(r,u));
     const q=(st.query||'').trim().toLowerCase();
     const rec = q ? scoped.find(r=>(r.transferNo||'').toLowerCase()===q || (r.id||'').toLowerCase()===q) : null;
 
     let detailHtml = '';
     if(q && !rec){
-      detailHtml = `<div class="empty" style="margin-top:14px;">لا توجد عملية بهذا الرقم${this.isAdmin()?'':' (في نطاق فرعك)'}</div>`;
+      detailHtml = `<div class="empty" style="margin-top:14px;">لا توجد عملية بهذا الرقم${this.allStores()?'':' (في نطاق فرعك)'}</div>`;
     } else if(rec){
       const it = d.items.find(i=>i.id===rec.itemId);
       detailHtml = `
@@ -5309,12 +5660,14 @@ const App = {
     return clone;
   },
   printCurrentReport(){
+    if(!this.can('export.pdf')){ this.notify('مش مسموح لحسابك بالتحميل ده — كلّم المدير.'); return; }
     const clone = this.reportSnapshot();
     if(!clone) return;
     const maxCols = Math.max(0, ...Array.from(clone.querySelectorAll('table')).map(t=>t.querySelectorAll('thead th').length));
     this.printHtmlDoc(this.buildPrintDoc({ title: this.currentReportTitle(), bodyHtml: clone.innerHTML, landscape: maxCols>7 }));
   },
   excelCurrentReport(){
+    if(!this.can('export.excel')){ this.notify('مش مسموح لحسابك بالتحميل ده — كلّم المدير.'); return; }
     const src = document.getElementById('reportBody');
     const tables = src ? Array.from(src.querySelectorAll('table')) : [];
     if(!tables.length){ this.notify('مفيش جداول في التقرير ده للتصدير.'); return; }
@@ -5418,6 +5771,7 @@ const App = {
     ];
   },
   exportCSV(rows, filename){
+    if(!this.can('export.excel')){ this.notify('مش مسموح لحسابك بالتحميل ده — كلّم المدير.'); return; }
     rows = this.reportPullStampRows(filename).concat(rows);
     const csv = rows.map(row=>row.map(cell=>{
       const s = String(cell==null?'':cell);
