@@ -982,24 +982,59 @@ const App = {
     if(this.db.activityLog.length > 500) this.db.activityLog = this.db.activityLog.slice(-500);
   },
 
+  /* the bell + its dropdown panel are built ONCE and then only patched —
+     never innerHTML'd from scratch again — because this gets re-invoked on
+     every single real-time sync tick from Firestore. Tearing the whole
+     panel down and rebuilding it each time (the old approach) kept
+     replacing the <select>/<input> elements out from under the person
+     while they were mid-click, which is why the sound-type dropdown
+     wouldn't open, the "تجربة" button seemed dead, and the list wouldn't
+     scroll — the DOM they were touching kept getting swapped for a new
+     copy a few hundred milliseconds later. */
   renderNotifBell(){
     const wrap = document.getElementById('notifBellWrap');
     if(!wrap) return;
     if(!this.isAdmin()){ wrap.innerHTML = ''; return; }
-    // if the notifications panel was open when a real-time sync update
-    // came in, don't just wipe it out from under the person's cursor —
-    // rebuild the bell, then immediately re-open (and refill) the panel
-    // so it doesn't look like it "flashed and vanished"
-    const wasOpen = this._notifPanelOpen;
     const log = (this.db.activityLog||[]).slice().sort((a,b)=>b.ts-a.ts);
     const u = this.currentUser();
     const lastSeen = u.notifLastSeenTs || 0;
     const unreadCount = log.filter(e=>e.ts>lastSeen && e.userId!==u.id).length;
-    wrap.innerHTML = `
-      <button class="notif-bell-btn" onclick="App.toggleNotifPanel()">🔔${unreadCount>0?`<span class="notif-badge">${unreadCount>99?'99+':unreadCount}</span>`:''}</button>
-      <div id="notifPanel" style="display:none;"></div>
-    `;
-    if(wasOpen) this.toggleNotifPanel();
+    let btn = wrap.querySelector('.notif-bell-btn');
+    if(!btn){
+      // first build only — creates the button + the (still empty, closed)
+      // panel container and never touches them again after this
+      wrap.innerHTML = `<button class="notif-bell-btn" onclick="App.toggleNotifPanel()">🔔</button><div id="notifPanel" style="display:none;"></div>`;
+      btn = wrap.querySelector('.notif-bell-btn');
+    }
+    let badge = btn.querySelector('.notif-badge');
+    if(unreadCount>0){
+      if(!badge){ badge = document.createElement('span'); badge.className='notif-badge'; btn.appendChild(badge); }
+      badge.textContent = unreadCount>99?'99+':String(unreadCount);
+    } else if(badge){
+      badge.remove();
+    }
+    // panel is open right now: keep its activity list current without
+    // touching the settings controls (checkbox/select/range) at all
+    if(this._notifPanelOpen) this.refreshNotifList();
+  },
+  /* rebuilds ONLY the scrollable activity-list portion of an already-open
+     panel (not the sound-settings box above it), and restores the scroll
+     position afterwards so a real-time update doesn't yank the list back
+     to the top while someone's reading it. */
+  refreshNotifList(){
+    const listEl = document.getElementById('notifLogList');
+    if(!listEl) return;
+    const log = (this.db.activityLog||[]).slice().sort((a,b)=>b.ts-a.ts).slice(0,50);
+    const u = this.currentUser();
+    const lastSeen = u.notifLastSeenTs || 0;
+    const scrollBox = document.querySelector('.notif-panel');
+    const prevScroll = scrollBox ? scrollBox.scrollTop : 0;
+    listEl.innerHTML = log.length===0? `<div class="empty small">لا يوجد نشاط مسجّل بعد</div>` :
+      log.map(e=>`<div class="notif-item ${e.ts>lastSeen && e.userId!==u.id?'unread':''}">
+        <div>${esc(e.label)}</div>
+        <div class="t">${esc(e.username)} — ${new Date(e.ts).toLocaleString('ar-EG')}</div>
+      </div>`).join('');
+    if(scrollBox) scrollBox.scrollTop = prevScroll;
   },
   toggleNotifPanel(){
     const panel = document.getElementById('notifPanel');
@@ -1007,12 +1042,12 @@ const App = {
     const opening = panel.style.display==='none';
     this._notifPanelOpen = opening;
     if(opening){
-      const log = (this.db.activityLog||[]).slice().sort((a,b)=>b.ts-a.ts).slice(0,50);
-      const u = this.currentUser();
-      const lastSeen = u.notifLastSeenTs || 0;
       const notifSupported = ('Notification' in window);
       const notifPerm = notifSupported ? Notification.permission : 'unsupported';
       const sp = this.getSoundNotifPrefs();
+      // built once per open: the settings box (checkbox/select/range) lives
+      // here and is left completely alone afterwards; only #notifLogList
+      // gets refreshed while the panel stays open (see refreshNotifList)
       panel.innerHTML = `
         <div class="notif-panel">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
@@ -1042,18 +1077,14 @@ const App = {
             </div>
             <div class="small muted" style="margin-top:6px;">💡 دوس "تجربة" مرة واحدة دلوقتي، عشان المتصفح يسمح بتشغيل الصوت تلقائيًا بعد كده لما يحصل نشاط جديد.</div>
           </div>
-          ${log.length===0? `<div class="empty small">لا يوجد نشاط مسجّل بعد</div>` :
-          log.map(e=>`<div class="notif-item ${e.ts>lastSeen && e.userId!==u.id?'unread':''}">
-            <div>${esc(e.label)}</div>
-            <div class="t">${esc(e.username)} — ${new Date(e.ts).toLocaleString('ar-EG')}</div>
-          </div>`).join('')}
+          <div id="notifLogList"></div>
         </div>
       `;
       panel.style.display = 'block';
+      this.refreshNotifList();
       // mark as seen from this admin's perspective (persists to their user
-      // record, so it stays read across their other devices too), and just
-      // drop the unread badge locally instead of rebuilding the whole bell
-      // (which would also blow away the panel we just opened)
+      // record, so it stays read across their other devices too)
+      const u = this.currentUser();
       u.notifLastSeenTs = Date.now();
       saveData(this.db);
       const badge = document.querySelector('.notif-bell-btn .notif-badge');
