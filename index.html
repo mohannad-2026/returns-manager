@@ -213,6 +213,10 @@ input,select,textarea{font-family:inherit;font-size:14px;}
 }
 @keyframes navRippleAnim{to{transform:scale(2.6);opacity:0;}}
 .side-foot{border-top:1px solid rgba(255,255,255,.14);padding-top:16px;margin-top:10px;}
+.report-export-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:-4px 0 14px;padding:8px 12px;background:var(--surface);border:1px solid var(--line);border-radius:8px;}
+.report-export-bar .small{margin-inline-end:4px;}
+.app-switch{text-decoration:none;margin-top:8px;border:1px dashed rgba(255,255,255,.22);}
+.app-switch .ext{margin-inline-start:auto;opacity:.6;font-size:12px;}
 .who-card{display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;padding:4px 8px 16px;}
 .who-avatar{
   width:48px;height:48px;border-radius:50%;flex-shrink:0;
@@ -410,6 +414,9 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:16px 0;}
   <aside class="sidebar" id="sidebar">
     <div class="brand" id="brandWrap"></div>
     <ul class="navlist" id="navlist"></ul>
+    <a class="navlink app-switch" id="transfersAppLink" href="https://transfers-companyapp.netlify.app/" target="_blank" rel="noopener">
+      <span class="ic">🚚</span><span>برنامج التحويلات</span><span class="ext">↗</span>
+    </a>
     <div class="side-foot">
       <div class="who-card">
         <div class="who-avatar" id="whoAvatar"></div>
@@ -453,6 +460,8 @@ const STORAGE_KEY = 'rm_data_v1';
 const SESSION_KEY = 'rm_session_v1';
 
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
+const DEFAULT_TRANSFERS_URL = 'https://transfers-companyapp.netlify.app/';
+function XLSX_colLetter(i){ let s=''; i=+i; do{ s=String.fromCharCode(65+(i%26))+s; i=Math.floor(i/26)-1; }while(i>=0); return s; }
 function todayStr(){ return new Date().toISOString().slice(0,10); }
 function nowTime(){ const d=new Date(); return d.toTimeString().slice(0,5); }
 function fmtNum(n){ return Number(n||0).toLocaleString('ar-EG'); }
@@ -855,6 +864,8 @@ const App = {
     const wrap = document.getElementById('brandWrap');
     if(!wrap) return;
     const settings = (this.db && this.db.settings) || {companyName:'', logo:''};
+    const tLink = document.getElementById('transfersAppLink');
+    if(tLink) tLink.href = settings.transfersUrl || DEFAULT_TRANSFERS_URL;
     const hasCompany = !!(settings.companyName || settings.logo);
     wrap.innerHTML = hasCompany ? `
       <div class="mark">${settings.logo? `<img src="${settings.logo}" style="width:100%;height:100%;object-fit:contain;border-radius:8px;">` : esc((settings.companyName||'؟').trim().slice(0,2))}</div>
@@ -1171,6 +1182,13 @@ const App = {
     this.renderNotifBell();
   },
 
+  /* a non-admin user sees their own store's records; a warehouse-only user
+     (no store linked) sees the records of their own warehouse */
+  inUserScope(r, u){
+    if(u.storeId) return r.storeId===u.storeId;
+    if(u.warehouseId) return r.warehouseId===u.warehouseId;
+    return false;
+  },
   storeName(id){ const s=this.db.stores.find(x=>x.id===id); return s?s.name:null; },
   itemName(id){ const s=this.db.items.find(x=>x.id===id); return s?s.name:''; },
   itemUnit(id){ const s=this.db.items.find(x=>x.id===id); return s?(s.unit||''):''; },
@@ -1337,7 +1355,7 @@ const App = {
   renderDashboard(){
     const d = this.db;
     const u = this.currentUser();
-    const myReturns = this.isAdmin() ? d.returns : d.returns.filter(r=>r.storeId===u.storeId);
+    const myReturns = this.isAdmin() ? d.returns : d.returns.filter(r=>this.inUserScope(r,u));
     const monthPrefix = todayStr().slice(0,7);
     const thisMonth = myReturns.filter(r=>r.date && r.date.startsWith(monthPrefix));
     const totalQtyMonth = thisMonth.reduce((a,r)=>a+Number(r.qty||0),0);
@@ -1455,7 +1473,7 @@ const App = {
     const d = this.db;
     const u = this.currentUser();
     const f = this.returnsFilter;
-    let rows = this.isAdmin() ? d.returns.slice() : d.returns.filter(r=>r.storeId===u.storeId);
+    let rows = this.isAdmin() ? d.returns.slice() : d.returns.filter(r=>this.inUserScope(r,u));
     if(f.store) rows = rows.filter(r=>r.storeId===f.store);
     if(f.item) rows = rows.filter(r=>r.itemId===f.item);
     if(f.reason) rows = rows.filter(r=>r.reason===f.reason);
@@ -2205,6 +2223,8 @@ const App = {
 
     let locType = f.locType;
     if(!admin && locType==='warehouse' && !u.warehouseId) locType = 'store';
+    // a warehouse-only user opens straight on their own warehouse
+    if(!admin && locType==='store' && !u.storeId && u.warehouseId) locType = 'warehouse';
 
     const availableStores = admin ? d.stores : d.stores.filter(s=>s.id===u.storeId);
     const availableWarehouses = admin ? d.warehouses : (u.warehouseId ? d.warehouses.filter(w=>w.id===u.warehouseId) : []);
@@ -2221,7 +2241,12 @@ const App = {
     }
 
     return `
-      <div class="section-head"><h3>المخزون</h3></div>
+      <div class="section-head"><h3>المخزون</h3>
+        ${this.can('inventory.edit') && locId ? `<div class="actions">
+          <button class="btn btn-accent btn-sm" onclick="App.openStockImport()">📥 رفع الأرصدة من إكسيل</button>
+          <button class="btn btn-sm" onclick="App.downloadStockTemplate()">⬇ نموذج إكسيل فاضي</button>
+        </div>` : ''}
+      </div>
       <div class="filters card" style="margin-bottom:14px;">
         <div class="field">
           <label>نوع الموقع</label>
@@ -2283,6 +2308,258 @@ const App = {
     this.logActivity(`عدّل رصيد مخزون: ${this.itemName(itemId)} في ${locName||'—'} إلى ${fmtNum(val)}`);
     this.closeModal();
     this.refresh();
+  },
+
+  /* ---------------- STOCK IMPORT FROM EXCEL ----------------
+     Reads a sheet with (item code or barcode or name) + quantity, matches each
+     row to a registered item, previews the result, then either REPLACES the
+     location's balance (a stock count) or ADDS to it (goods received). */
+  _stockImport: null,
+  downloadStockTemplate(){
+    const f = this.inventoryFilter;
+    const rows = [['كود الصنف','الباركود','اسم الصنف','الكمية']];
+    this.db.items.forEach(it=>rows.push([it.code||'', it.barcode||'', it.name||'', '']));
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{wch:16},{wch:18},{wch:40},{wch:10}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'المخزون');
+    const out = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+    const locName = f.locType==='store' ? this.storeName(f.locId) : this.whName(f.locId);
+    this.saveFile(`نموذج_رفع_المخزون_${locName||''}.xlsx`, new Blob([out], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+  },
+  openStockImport(){
+    const f = this.inventoryFilter;
+    const locName = f.locType==='store' ? this.storeName(f.locId) : this.whName(f.locId);
+    this._stockImport = {locType:f.locType, locId:f.locId, mode:'replace', book:null, sheetIdx:0, qtyCol:null, useLocCol:true};
+    this.openModal(`
+      <button class="modal-close" onclick="App.closeModal()">✕</button>
+      <h3>📥 رفع أرصدة المخزون من إكسيل</h3>
+      <div class="help-box" style="margin-bottom:14px;">
+        ارفع <b>أي شيت إكسيل عندك</b> زي ما هو — مش لازم نموذج معيّن. البرنامج بيدوّر لوحده على عمود الصنف (كود أو باركود أو اسم) وعمود الكمية في أي مكان في الملف وفي أي شيت، ويطابق الأصناف مع المسجلة عندك.<br>
+        الموقع: <b>${esc(locName||'—')}</b> (${f.locType==='store'?'محل':'مستودع'})${this.isAdmin()?' — ولو الشيت فيه عمود باسم الفرع/المستودع، كل صف هيروح لمكانه تلقائيًا.':'.'}
+      </div>
+      <div class="field">
+        <label>الكمية اللي في الملف تعمل إيه؟</label>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
+          <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer;"><input type="radio" name="stkMode" value="replace" checked style="width:auto;flex:none;margin-top:5px;" onchange="App._stockImport.mode='replace';App.renderStockImportPreview()">
+            <span><b>استبدال الرصيد (جرد)</b><br><span class="small muted">الرقم في الملف يبقى هو الرصيد الجديد بالظبط</span></span></label>
+          <label style="display:flex;gap:8px;align-items:flex-start;cursor:pointer;"><input type="radio" name="stkMode" value="add" style="width:auto;flex:none;margin-top:5px;" onchange="App._stockImport.mode='add';App.renderStockImportPreview()">
+            <span><b>إضافة على الرصيد (استلام بضاعة)</b><br><span class="small muted">الرقم في الملف يتجمع على الرصيد الموجود</span></span></label>
+        </div>
+      </div>
+      <div class="field"><label>ملف الإكسيل (xlsx / xls / csv)</label><input type="file" id="stockFile" accept=".xlsx,.xls,.xlsm,.csv" onchange="App.readStockImportFile()"></div>
+      <div id="stockImportPreview"></div>
+      <div class="modal-actions">
+        <button class="btn btn-accent" id="stockImportApply" disabled onclick="App.applyStockImport()">تأكيد وتحديث الأرصدة</button>
+        <button class="btn" onclick="App.closeModal()">إلغاء</button>
+      </div>
+    `);
+  },
+
+  /* ---- smart matching helpers (any sheet layout) ---- */
+  _arNorm(v){
+    return String(v==null?'':v)
+      .replace(/[ً-ٰٟـ]/g,'')          // diacritics + tatweel
+      .replace(/[أإآٱ]/g,'ا').replace(/ة/g,'ه').replace(/ى/g,'ي').replace(/ؤ/g,'و').replace(/ئ/g,'ي')
+      .replace(/[٠-٩]/g, dg=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(dg)))
+      .replace(/[۰-۹]/g, dg=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(dg)))
+      .toLowerCase().replace(/[\s‏‎؜ ]+/g,' ').trim();
+  },
+  _cellStr(v){
+    if(typeof v==='number') return Number.isInteger(v) ? v.toFixed(0) : String(v);
+    return String(v==null?'':v);
+  },
+  _idKey(v){
+    let s = this._arNorm(this._cellStr(v));
+    if(/^\d+(\.0+)?$/.test(s)) s = s.replace(/\.0+$/,'').replace(/^0+(?=\d)/,'');
+    return s;
+  },
+  _parseQty(v){
+    if(typeof v==='number') return v;
+    const s = this._arNorm(v).replace(/[٬,]/g,'').replace(/٫/g,'.');
+    const m = s.match(/-?\d+(\.\d+)?/);
+    return m ? parseFloat(m[0]) : NaN;
+  },
+  _stockMaps(){
+    const byId = new Map(), byName = new Map(), byNameNS = new Map();
+    this.db.items.forEach(it=>{
+      if(it.code) byId.set(this._idKey(it.code), it);
+      if(it.barcode) byId.set(this._idKey(it.barcode), it);
+      if(it.name){ byName.set(this._arNorm(it.name), it); byNameNS.set(this._arNorm(it.name).replace(/\s/g,''), it); }
+    });
+    const locs = new Map();
+    this.db.stores.forEach(s=>{ [s.name,s.code].filter(Boolean).forEach(k=>locs.set(this._idKey(k), {locType:'store', locId:s.id})); });
+    this.db.warehouses.forEach(w=>{ [w.name,w.code].filter(Boolean).forEach(k=>locs.set(this._idKey(k), {locType:'warehouse', locId:w.id})); });
+    return {byId, byName, byNameNS, locs};
+  },
+  _matchItem(v, maps){
+    const k = this._idKey(v);
+    if(!k) return null;
+    return maps.byId.get(k) || maps.byName.get(k) || maps.byNameNS.get(k.replace(/\s/g,'')) || null;
+  },
+  /* figure out which row is the header and which columns hold item / qty / location */
+  _analyzeStockSheet(aoa, maps){
+    const KW = {
+      qty:['كميه','الكميه','رصيد','الرصيد','العدد','عدد','المتاح','الموجود','المخزون','جرد','الجرد','فعلي','qty','quantity','stock','balance','on hand','count'],
+      bad:['سعر','تكلفه','قيمه','مبلغ','price','cost','amount','value','تاريخ','date','وزن','weight','شد','عبوه'],
+      id:['كود','رمز','باركود','بار كود','رقم الصنف','item no','code','sku','barcode','ean'],
+      name:['اسم','صنف','الصنف','بيان','وصف','منتج','ماده','name','item','description','product'],
+      loc:['فرع','الفرع','محل','المحل','مستودع','المستودع','موقع','branch','store','warehouse','location'],
+    };
+    const has = (cell, words)=>{ const c=this._arNorm(cell); return !!c && words.some(w=>c.includes(this._arNorm(w))); };
+    // header row = the row (in the first 30) with the most keyword hits
+    let hdrIdx = -1, best = 0;
+    for(let r=0; r<Math.min(aoa.length,30); r++){
+      const row = aoa[r]||[];
+      let sc = 0; row.forEach(c=>{ if(typeof c==='string' && (has(c,KW.qty)||has(c,KW.id)||has(c,KW.name)||has(c,KW.loc))) sc++; });
+      if(sc>best){ best=sc; hdrIdx=r; }
+    }
+    const header = hdrIdx>=0 ? (aoa[hdrIdx]||[]).map(c=>this._cellStr(c).trim()) : [];
+    const data = aoa.slice(hdrIdx+1).filter(r=>r && r.some(c=>String(c).trim()!==''));
+    const nCols = Math.max(header.length, ...data.slice(0,500).map(r=>r.length), 0);
+    const sample = data.slice(0,800);
+    const cols = [];
+    for(let c=0;c<nCols;c++){
+      let nonEmpty=0, idHits=0, locHits=0, locNameHits=0, nums=0, longDigits=0;
+      sample.forEach(r=>{
+        const v = r[c]; const sv = this._cellStr(v).trim();
+        if(sv==='') return;
+        nonEmpty++;
+        if(this._matchItem(v, maps)) idHits++;
+        if(maps.locs.get(this._idKey(v))){ locHits++; if(!/^\d+$/.test(this._idKey(v))) locNameHits++; }
+        const q = this._parseQty(v);
+        if(!isNaN(q) && /^[\s\d٠-٩.,٬٫\-]+(\s*[؀-ۿa-zA-Z]{0,8})?$/.test(sv)) nums++;
+        if(/^\d{6,}$/.test(this._idKey(v))) longDigits++;
+      });
+      const h = header[c]||'';
+      cols.push({c, h, nonEmpty, idHits, locHits, locNameHits, nums, longDigits,
+        hQty: has(h,KW.qty) && !has(h,KW.bad), hBad: has(h,KW.bad), hId: has(h,KW.id)||has(h,KW.name), hLoc: has(h,KW.loc)});
+    }
+    const idCols = cols.filter(x=>x.idHits>0).sort((a,b)=>b.idHits-a.idHits).map(x=>x.c);
+    // a branch/warehouse column must match branch NAMES, or be headed like "الفرع" (plain numbers alone are too ambiguous)
+    const locCol = (cols.filter(x=>x.nonEmpty && !idCols.slice(0,1).includes(x.c) && ((x.hLoc && x.locHits/x.nonEmpty>=0.5) || x.locNameHits/x.nonEmpty>=0.5)).sort((a,b)=>b.locHits-a.locHits)[0]||{}).c;
+    const qtyCands = cols.filter(x=>x.nonEmpty && x.nums/x.nonEmpty>=0.6 && x.c!==locCol && !(x.idHits/x.nonEmpty>0.3) && !x.hBad);
+    const scoreQ = x=> (x.hQty?1000:0) + (x.hId?-500:0) + (x.longDigits/x.nonEmpty>0.5?-300:0) + x.nums;
+    qtyCands.sort((a,b)=>scoreQ(b)-scoreQ(a));
+    return {hdrIdx, header, data, cols, idCols, locCol, qtyCol: qtyCands.length? qtyCands[0].c : null, qtyCands: qtyCands.map(x=>x.c)};
+  },
+  readStockImportFile(){
+    const input = document.getElementById('stockFile');
+    const box = document.getElementById('stockImportPreview');
+    if(!input.files || !input.files[0]) return;
+    box.innerHTML = '<div class="small muted">جاري قراءة الملف…</div>';
+    const reader = new FileReader();
+    reader.onload = (e)=>{
+      try{
+        const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+        const maps = this._stockMaps();
+        const sheets = wb.SheetNames.map(n=>{
+          const aoa = XLSX.utils.sheet_to_json(wb.Sheets[n], {header:1, raw:true, defval:''});
+          const a = this._analyzeStockSheet(aoa, maps);
+          const matched = a.data.filter(r=>a.idCols.some(c=>this._matchItem(r[c], maps))).length;
+          return {name:n, aoa, a, matched};
+        });
+        // start on the sheet that matches the most registered items
+        let bestIdx = 0; sheets.forEach((s,i)=>{ if(s.matched>sheets[bestIdx].matched) bestIdx=i; });
+        const st = this._stockImport;
+        st.book = sheets; st.sheetIdx = bestIdx; st.qtyCol = sheets[bestIdx].a.qtyCol;
+        this.renderStockImportPreview();
+      }catch(err){
+        console.error(err);
+        box.innerHTML = `<div class="help-box" style="color:var(--bad);">تعذّرت قراءة الملف. تأكد إنه ملف إكسيل (xlsx / xls) أو csv.</div>`;
+      }
+    };
+    reader.readAsArrayBuffer(input.files[0]);
+  },
+  _computeStockImport(){
+    const st = this._stockImport;
+    const sh = st.book[st.sheetIdx], a = sh.a;
+    const maps = this._stockMaps();
+    const admin = this.isAdmin();
+    const useLoc = admin && st.useLocCol && a.locCol!=null;
+    const agg = new Map(); const unmatched = new Map(); let emptyQty = 0, unmatchedLoc = 0;
+    if(st.qtyCol==null) return {rows:[], unmatched:[], emptyQty:0, unmatchedLoc:0, useLoc};
+    a.data.forEach(r=>{
+      let it = null;
+      for(const c of a.idCols){ it = this._matchItem(r[c], maps); if(it) break; }
+      const q = this._parseQty(r[st.qtyCol]);
+      if(!it){
+        // only report rows that actually look like item rows (have some text and a quantity)
+        const label = (a.idCols.length? r[a.idCols[0]] : '') || r.find(v=>typeof v==='string' && v.trim() && isNaN(this._parseQty(v))) || '';
+        if(String(label).trim() && !isNaN(q) && !/اجمال|مجموع|total|sum/i.test(this._arNorm(label))) unmatched.set(String(label).trim(), true);
+        return;
+      }
+      if(isNaN(q)){ emptyQty++; return; }
+      let loc = {locType:st.locType, locId:st.locId};
+      if(useLoc){
+        const l = maps.locs.get(this._idKey(r[a.locCol]));
+        if(!l){ unmatchedLoc++; return; }
+        loc = l;
+      }
+      const key = loc.locType+'|'+loc.locId+'|'+it.id;
+      const prev = agg.get(key);
+      agg.set(key, {locType:loc.locType, locId:loc.locId, itemId:it.id, qty:(prev?prev.qty:0)+q});
+    });
+    return {rows:Array.from(agg.values()), unmatched:Array.from(unmatched.keys()), emptyQty, unmatchedLoc, useLoc};
+  },
+  renderStockImportPreview(){
+    const st = this._stockImport;
+    const box = document.getElementById('stockImportPreview');
+    const btn = document.getElementById('stockImportApply');
+    if(!box || !st || !st.book) return;
+    const sh = st.book[st.sheetIdx], a = sh.a;
+    const colName = c=> (a.header[c] && String(a.header[c]).trim()) || ('عمود ' + XLSX_colLetter(c));
+    const res = this._computeStockImport();
+    st.result = res;
+    const add = st.mode==='add';
+    btn.disabled = res.rows.length===0;
+    const locLabel = r=> r.locType==='store' ? (this.storeName(r.locId)||'—') : this.whName(r.locId);
+    box.innerHTML = `
+      <div class="card" style="padding:10px 12px;margin-bottom:10px;">
+        <div class="form-row" style="grid-template-columns:${st.book.length>1?'1fr ':''}1fr;align-items:end;">
+          ${st.book.length>1? `<div class="field" style="margin-bottom:0;"><label>الشيت</label><select onchange="App._stockImport.sheetIdx=+this.value;App._stockImport.qtyCol=App._stockImport.book[+this.value].a.qtyCol;App.renderStockImportPreview()">
+            ${st.book.map((s,i)=>`<option value="${i}" ${i===st.sheetIdx?'selected':''}>${esc(s.name)} (${fmtNum(s.matched)} صنف متعرف)</option>`).join('')}</select></div>`:''}
+          <div class="field" style="margin-bottom:0;"><label>عمود الكمية (اتحدد تلقائيًا — غيّره لو مش صح)</label><select onchange="App._stockImport.qtyCol=this.value===''?null:+this.value;App.renderStockImportPreview()">
+            ${a.qtyCol==null && st.qtyCol==null? '<option value="">— اختار عمود الكمية —</option>':''}
+            ${a.cols.filter(x=>x.nonEmpty).map(x=>`<option value="${x.c}" ${x.c===st.qtyCol?'selected':''}>${esc(colName(x.c))}${a.qtyCands.includes(x.c)?'':' (مش أرقام)'}</option>`).join('')}
+          </select></div>
+        </div>
+        <div class="small muted" style="margin-top:8px;">
+          عمود الصنف: <b>${a.idCols.length? a.idCols.slice(0,2).map(c=>esc(colName(c))).join(' / ') : '<span style="color:var(--bad)">مش لاقي أصناف مسجلة في الشيت ده</span>'}</b>
+          ${a.locCol!=null && this.isAdmin()? ` — عمود الموقع: <b>${esc(colName(a.locCol))}</b> <label style="display:inline-flex;gap:4px;align-items:center;margin-inline-start:8px;"><input type="checkbox" style="width:auto;" ${st.useLocCol?'checked':''} onchange="App._stockImport.useLocCol=this.checked;App.renderStockImportPreview()"> وزّع حسب العمود ده</label>`:''}
+        </div>
+      </div>
+      <div class="grid grid-3" style="margin:6px 0 12px;">
+        <div class="stat accent"><div class="n">${fmtNum(res.rows.length)}</div><div class="l">صنف هيتحدث رصيده</div></div>
+        <div class="stat ${res.unmatched.length?'bad':''}"><div class="n">${fmtNum(res.unmatched.length)}</div><div class="l">صنف في الملف مش مسجل عندك</div></div>
+        <div class="stat"><div class="n">${fmtNum(res.emptyQty + res.unmatchedLoc)}</div><div class="l">صف اتساب (كمية فاضية${res.useLoc?' أو موقع مش معروف':''})</div></div>
+      </div>
+      ${res.unmatched.length? `<div class="help-box" style="margin-bottom:10px;">مش مسجلين في الأصناف (هيتسابوا): ${res.unmatched.slice(0,15).map(x=>`<span class="tag bad" style="margin:2px;">${esc(x)}</span>`).join('')}${res.unmatched.length>15?` و${fmtNum(res.unmatched.length-15)} غيرهم`:''}</div>`:''}
+      ${res.rows.length? `<div class="tbl-wrap" style="max-height:260px;overflow:auto;"><table class="tbl"><thead><tr>${res.useLoc?'<th>الموقع</th>':''}<th>الصنف</th><th>الرصيد الحالي</th><th>${add?'هيتضاف':'من الملف'}</th><th>الرصيد بعد التحديث</th></tr></thead><tbody>
+        ${res.rows.map(r=>{
+          const cur = this.getStock(r.itemId, r.locType, r.locId);
+          const next = add ? cur + r.qty : r.qty;
+          return `<tr>${res.useLoc?`<td>${esc(locLabel(r))}</td>`:''}<td>${esc(this.itemName(r.itemId))}</td><td>${fmtNum(cur)}</td><td>${add&&r.qty>0?'+':''}${fmtNum(r.qty)}</td><td><b>${fmtNum(next)}</b></td></tr>`;
+        }).join('')}
+      </tbody></table></div>`: (st.qtyCol==null? `<div class="help-box">مش لاقي عمود فيه كميات — اختاره من القائمة فوق.</div>`:'')}
+    `;
+  },
+  applyStockImport(){
+    const st = this._stockImport;
+    const res = st && st.result;
+    if(!res || !res.rows.length) return;
+    const add = st.mode==='add';
+    res.rows.forEach(r=>{
+      if(add) this.adjustStock(r.itemId, r.locType, r.locId, r.qty);
+      else this.setStock(r.itemId, r.locType, r.locId, r.qty);
+    });
+    const locs = new Set(res.rows.map(r=> r.locType==='store' ? this.storeName(r.locId) : this.whName(r.locId)));
+    const locTxt = Array.from(locs).join('، ');
+    this.logActivity(`رفع أرصدة مخزون من إكسيل (${add?'إضافة على الرصيد':'استبدال/جرد'}) لعدد ${fmtNum(res.rows.length)} صنف في ${locTxt||'—'}`);
+    this._stockImport = null;
+    this.closeModal();
+    this.refresh();
+    this.notify(`تم تحديث أرصدة ${fmtNum(res.rows.length)} صنف في ${locTxt||'—'} ✅`);
   },
 
   /* ---------------- EXPORT REGISTERED ITEMS TO EXCEL ---------------- */
@@ -3071,8 +3348,8 @@ const App = {
      REPORTS
   ===================================================================== */
   reportsTab:'item-period',
-  renderReports(){
-    const tabs=[
+  reportTabs(){
+    return [
       {id:'lookup', label:'🔎 بحث تفصيلي عن صنف'},
       {id:'custom', label:'تقرير شامل (PDF / إكسيل)'},
       {id:'record', label:'🔍 تفصيل عملية واحدة'},
@@ -3085,10 +3362,19 @@ const App = {
       {id:'expiry', label:'تقرير الصلاحية'},
       ...(this.can('finance.view')? [{id:'costs', label:'💰 التكاليف والخسائر'}] : []),
     ];
+  },
+  renderReports(){
+    const tabs=this.reportTabs();
+    const showExport = this.reportsTab!=='custom';
     return `
       <div class="pill-tabs">
         ${tabs.map(t=>`<button class="pill-tab ${this.reportsTab===t.id?'active':''}" onclick="App.reportsTab='${t.id}';App.render()">${t.label}</button>`).join('')}
       </div>
+      ${showExport? `<div class="report-export-bar">
+        <span class="small muted">تصدير التقرير المعروض:</span>
+        <button class="btn btn-accent btn-sm" onclick="App.printCurrentReport()">📄 PDF</button>
+        <button class="btn btn-sm" onclick="App.excelCurrentReport()">📊 Excel</button>
+      </div>`:''}
       <div id="reportBody">${this.renderReportBody()}</div>
     `;
   },
@@ -3121,7 +3407,7 @@ const App = {
     const st=this.rp_costs;
     if(!this.isAdmin() && !st.storeId) st.storeId = u.storeId;
 
-    let rows = this.isAdmin() ? d.returns.slice() : d.returns.filter(r=>r.storeId===u.storeId);
+    let rows = this.isAdmin() ? d.returns.slice() : d.returns.filter(r=>this.inUserScope(r,u));
     if(st.storeId) rows = rows.filter(r=>r.storeId===st.storeId);
     if(st.from) rows = rows.filter(r=>r.date>=st.from);
     if(st.to) rows = rows.filter(r=>r.date<=st.to);
@@ -3190,7 +3476,7 @@ const App = {
 
     // if the query matches a transfer number, jump straight to that return's item
     if(q && !st.itemId){
-      const scopedAll = this.isAdmin()? d.returns : d.returns.filter(r=>r.storeId===u.storeId);
+      const scopedAll = this.isAdmin()? d.returns : d.returns.filter(r=>this.inUserScope(r,u));
       const byTransfer = scopedAll.find(r=>(r.transferNo||'').toLowerCase()===q);
       if(byTransfer){ st.itemId = byTransfer.itemId; }
     }
@@ -3207,7 +3493,7 @@ const App = {
     let historyHtml = '';
     if(st.itemId){
       const it = d.items.find(i=>i.id===st.itemId);
-      const scoped = this.isAdmin()? d.returns : d.returns.filter(r=>r.storeId===u.storeId);
+      const scoped = this.isAdmin()? d.returns : d.returns.filter(r=>this.inUserScope(r,u));
       const rows = scoped.filter(r=>r.itemId===st.itemId).sort((a,b)=> (b.date+(b.time||'')).localeCompare(a.date+(a.time||'')));
       const totalQty = rows.reduce((a,r)=>a+Number(r.qty||0),0);
 
@@ -3302,7 +3588,7 @@ const App = {
   },
   exportItemLookupRows(){
     const d=this.db, u=this.currentUser();
-    const scoped = this.isAdmin()? d.returns : d.returns.filter(r=>r.storeId===u.storeId);
+    const scoped = this.isAdmin()? d.returns : d.returns.filter(r=>this.inUserScope(r,u));
     const rows = scoped.filter(r=>r.itemId===this.rp_lookup.itemId).sort((a,b)=> (b.date+(b.time||'')).localeCompare(a.date+(a.time||'')));
     return [['التاريخ','الوقت','الفرع','الكمية','الوحدة','رقم تحويل المرتجع','السبب','تاريخ الصلاحية','المستودع'],
       ...rows.map(r=>[r.date,r.time,this.storeName(r.storeId),r.qty,this.returnUnit(r),r.transferNo,r.reason,r.expiry,this.whName(r.warehouseId)])];
@@ -3313,7 +3599,7 @@ const App = {
   computeCustomReportData(){
     const d=this.db; const u=this.currentUser();
     const st=this.rp_custom;
-    const scoped = this.isAdmin()? d.returns.slice() : d.returns.filter(r=>r.storeId===u.storeId);
+    const scoped = this.isAdmin()? d.returns.slice() : d.returns.filter(r=>this.inUserScope(r,u));
     let rows = scoped.filter(r=> r.date>=st.from && r.date<=st.to);
     if(st.storeId) rows = rows.filter(r=>r.storeId===st.storeId);
     if(st.itemId) rows = rows.filter(r=>r.itemId===st.itemId);
@@ -3471,22 +3757,20 @@ const App = {
       <div style="margin-top:14px;">
         <div style="font-weight:700;font-size:13.5px;margin-bottom:6px;">📋 التقرير الملخص وحده</div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-          <button class="btn btn-accent btn-sm" onclick="App.downloadPrintableReport('summary')">⬇ HTML للطباعة</button>
+          <button class="btn btn-accent btn-sm" onclick="App.downloadPrintableReport('summary')">📄 PDF</button>
           <button class="btn btn-sm" onclick="App.exportCustomExcel('summary')">📊 Excel</button>
-          <button class="btn btn-sm" onclick="App.exportCustomPDF('summary')">⬇ PDF (صورة)</button>
         </div>
       </div>
       <div style="margin-top:14px;">
         <div style="font-weight:700;font-size:13.5px;margin-bottom:6px;">🧾 التقرير التفصيلي وحده</div>
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-          <button class="btn btn-accent btn-sm" onclick="App.downloadPrintableReport('detail')">⬇ HTML للطباعة</button>
+          <button class="btn btn-accent btn-sm" onclick="App.downloadPrintableReport('detail')">📄 PDF</button>
           <button class="btn btn-sm" onclick="App.exportCustomExcel('detail')">📊 Excel</button>
-          <button class="btn btn-sm" onclick="App.exportCustomPDF('detail')">⬇ PDF (صورة)</button>
         </div>
       </div>
       <div style="margin-top:10px;"><span id="customReportStatus" class="small muted"></span></div>
       <div class="small muted" style="margin-top:8px;">
-        زر "HTML للطباعة" ينزّل ملف تفتحه من جهازك بأي متصفح وتطبعه (Ctrl+P → Save as PDF) للحصول على نص عربي حقيقي قابل للتحديد. زر "PDF (صورة)" بديل سريع يحوّل التقرير لصورة داخل ملف PDF مباشرة من غير خطوة إضافية.
+        زر "PDF" بيفتح نافذة الحفظ — اختار <b>"حفظ بتنسيق PDF / Save as PDF"</b> في خانة الطابعة ودوس حفظ. الملف بيطلع PDF حقيقي بنص واضح مهما كبّرت (مش صورة).
       </div>
     </div>
 
@@ -3535,6 +3819,13 @@ const App = {
           <img src="${settings.logo}" style="height:48px;max-width:160px;object-fit:contain;border:1px solid var(--line);border-radius:6px;padding:2px;background:#fff;">
           <button class="btn btn-sm" onclick="App.clearLogo()">إزالة الشعار</button>
         </div>`:''}
+      </div>
+
+      <div class="card" style="margin-top:14px;">
+        <div class="section-head"><h3>🚚 الربط مع برنامج التحويلات</h3></div>
+        <div class="small muted" style="margin-bottom:10px;">الرابط اللي بيفتحه زرار "برنامج التحويلات" في القائمة الجانبية.</div>
+        <div class="field" style="max-width:520px;"><label>رابط برنامج التحويلات</label>
+          <input type="url" id="rc_transfersUrl" dir="ltr" value="${esc(settings.transfersUrl||DEFAULT_TRANSFERS_URL)}" onchange="App.saveTransfersUrl()"></div>
       </div>
 
       <div class="card" style="margin-top:14px;">
@@ -3650,6 +3941,15 @@ const App = {
         <button class="btn" style="background:var(--bad);color:#fff;border-color:var(--bad);" onclick="App.openResetConfirm()">حذف كل البيانات والبدء من جديد</button>
       </div>
     `;
+  },
+  saveTransfersUrl(){
+    if(!this.isOwner()) return;
+    let url = document.getElementById('rc_transfersUrl').value.trim();
+    if(url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
+    this.db.settings = this.db.settings || {companyName:'', logo:''};
+    this.db.settings.transfersUrl = url;
+    this.logActivity(`عدّل رابط برنامج التحويلات إلى "${url}"`);
+    this.refresh();
   },
   saveReportSettings(){
     if(!this.isOwner()) return;
@@ -4047,10 +4347,12 @@ const App = {
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="UTF-8">
-<title>تقرير المرتجعات</title>
+<title>${esc(this.buildReportFilename(mode, data, 'pdf').replace(/\.pdf$/,''))}</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;800&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-  *{box-sizing:border-box;}
-  body{font-family:'Tahoma','Segoe UI','Arial',sans-serif;color:#122038;margin:0;padding:28px;background:#fff;line-height:1.6;}
+  @page{size:A4 ${mode==='detail'?'landscape':'portrait'};margin:10mm;}
+  *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  body{font-family:'Tajawal','Tahoma','Segoe UI','Arial',sans-serif;color:#122038;margin:0;padding:28px;background:#fff;line-height:1.6;}
   .toolbar{display:flex;justify-content:flex-end;margin-bottom:16px;}
   .toolbar button{background:#0E7490;color:#fff;border:none;padding:10px 20px;border-radius:6px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;}
   .head{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;border-bottom:2px solid #122038;padding-bottom:14px;margin-bottom:14px;}
@@ -4128,13 +4430,12 @@ const App = {
 </body>
 </html>`;
 
-    const blob = new Blob([html], {type:'text/html;charset=utf-8;'});
-    this.saveFile(this.buildReportFilename(mode, data, 'html'), blob);
+    this.printHtmlDoc(html);
   },
 
   rp_item:{itemId:'', p1from:'', p1to:'', p2from:'', p2to:''},
   reportItemPeriod(){
-    const d=this.db; const u=this.currentUser(); const scoped = this.isAdmin()? d.returns : d.returns.filter(r=>r.storeId===u.storeId);
+    const d=this.db; const u=this.currentUser(); const scoped = this.isAdmin()? d.returns : d.returns.filter(r=>this.inUserScope(r,u));
     const st = this.rp_item;
     // default period1 = current month, period2 = previous month, same length
     if(!st.p1from){ st.p1from = todayStr().slice(0,8)+'01'; st.p1to = todayStr(); }
@@ -4223,7 +4524,7 @@ const App = {
     `;
   },
   exportItemPeriodRows(){
-    const d=this.db; const u=this.currentUser(); const scoped = this.isAdmin()? d.returns : d.returns.filter(r=>r.storeId===u.storeId);
+    const d=this.db; const u=this.currentUser(); const scoped = this.isAdmin()? d.returns : d.returns.filter(r=>this.inUserScope(r,u));
     const st=this.rp_item;
     const rows = scoped.filter(r=>r.itemId===st.itemId && r.date>=st.p1from && r.date<=st.p1to);
     return [['التاريخ','الوقت','المحل','الكمية','رقم التحويل','السبب','تاريخ الصلاحية'],
@@ -4333,7 +4634,7 @@ const App = {
 
   reportExpiry(){
     const d=this.db; const u=this.currentUser();
-    let rows = this.isAdmin()? d.returns.slice() : d.returns.filter(r=>r.storeId===u.storeId);
+    let rows = this.isAdmin()? d.returns.slice() : d.returns.filter(r=>this.inUserScope(r,u));
     rows = rows.filter(r=>r.expiry);
     rows.sort((a,b)=>a.expiry.localeCompare(b.expiry));
     const now = new Date(new Date().setHours(0,0,0,0));
@@ -4356,7 +4657,7 @@ const App = {
   },
   exportExpiryRows(){
     const d=this.db; const u=this.currentUser();
-    let rows = this.isAdmin()? d.returns.slice() : d.returns.filter(r=>r.storeId===u.storeId);
+    let rows = this.isAdmin()? d.returns.slice() : d.returns.filter(r=>this.inUserScope(r,u));
     rows = rows.filter(r=>r.expiry);
     return [['الصنف','المحل','تاريخ الترجيع','تاريخ الصلاحية','السبب'],
       ...rows.map(r=>[this.itemName(r.itemId),this.storeName(r.storeId),r.date,r.expiry,r.reason])];
@@ -4470,7 +4771,7 @@ const App = {
   },
   computeMoversList(){
     const d=this.db, u=this.currentUser(); const st=this.rp_movers; const admin=this.isAdmin();
-    const scoped = admin ? d.returns : d.returns.filter(r=>r.storeId===u.storeId);
+    const scoped = admin ? d.returns : d.returns.filter(r=>this.inUserScope(r,u));
     const periodRows = scoped.filter(r=> (!st.storeId || r.storeId===st.storeId) && r.date>=st.from && r.date<=st.to);
     const byItem = {};
     periodRows.forEach(r=>{
@@ -4551,7 +4852,7 @@ const App = {
   reportRecordLookup(){
     const d=this.db, u=this.currentUser();
     const st=this.rp_record;
-    const scoped = this.isAdmin()? d.returns : d.returns.filter(r=>r.storeId===u.storeId);
+    const scoped = this.isAdmin()? d.returns : d.returns.filter(r=>this.inUserScope(r,u));
     const q=(st.query||'').trim().toLowerCase();
     const rec = q ? scoped.find(r=>(r.transferNo||'').toLowerCase()===q || (r.id||'').toLowerCase()===q) : null;
 
@@ -4587,6 +4888,174 @@ const App = {
     </div>
     ${detailHtml}
     `;
+  },
+
+  /* ---------------- REAL (VECTOR) PDF + EXCEL EXPORT FOR ANY REPORT TAB ----------------
+     The browser's own print engine renders the report — real Arabic text, sharp at any
+     zoom — and "Save as PDF" writes a genuine PDF (not a picture). */
+  printHtmlDoc(html){
+    const old = document.getElementById('printFrame');
+    if(old) old.remove();
+    const fr = document.createElement('iframe');
+    fr.id = 'printFrame';
+    fr.setAttribute('aria-hidden','true');
+    fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+    document.body.appendChild(fr);
+    const w = fr.contentWindow, doc = w.document;
+    doc.open(); doc.write(html); doc.close();
+    const fire = ()=>{
+      try{ w.focus(); w.print(); }
+      catch(e){
+        const nw = window.open('', '_blank');
+        if(nw){ nw.document.write(html); nw.document.close(); setTimeout(()=>{ try{ nw.print(); }catch(_){} }, 800); }
+        else this.notify('المتصفح منع نافذة الطباعة. اسمح بالنوافذ المنبثقة للموقع ده وجرّب تاني.');
+      }
+    };
+    const fontsReady = (doc.fonts && doc.fonts.ready) ? doc.fonts.ready : Promise.resolve();
+    const imgs = Array.from(doc.images||[]).filter(im=>!im.complete).map(im=>new Promise(r=>{ im.onload = im.onerror = r; }));
+    Promise.race([Promise.all([fontsReady].concat(imgs)), new Promise(r=>setTimeout(r, 3000))])
+      .then(()=>setTimeout(fire, 200));
+  },
+  reportStamp(){
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  },
+  buildPrintDoc({title, bodyHtml, landscape}){
+    const settings = this.db.settings || {companyName:'', logo:''};
+    const u = this.currentUser();
+    const stamp = this.reportStamp();
+    return `<!DOCTYPE html>
+<html lang="ar" dir="rtl"><head><meta charset="UTF-8">
+<title>${esc(title)} ${esc(stamp.slice(0,10))}</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;800&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  @page{size:A4 ${landscape?'landscape':'portrait'};margin:10mm;}
+  :root{--bg:#fff;--surface:#fff;--surface-2:#f4f6f9;--ink:#122038;--ink-soft:#344563;--muted:#6b778c;--line:#d8dee8;
+        --accent:#0E7490;--accent-ink:#fff;--accent-soft:#e3f3f7;--good:#15803d;--good-soft:#e5f5ea;--bad:#b91c1c;--bad-soft:#fdecec;--warn:#a16207;--warn-soft:#fdf4dc;}
+  *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  body{font-family:'Tajawal','Tahoma','Segoe UI',Arial,sans-serif;color:var(--ink);margin:0;padding:0;background:#fff;font-size:12.5px;line-height:1.55;}
+  h1,h2,h3{font-family:'Cairo','Tajawal',Tahoma,sans-serif;margin:0;}
+  .ph{display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:2.5px solid var(--ink);padding-bottom:10px;margin-bottom:14px;}
+  .ph .l{display:flex;align-items:center;gap:12px;}
+  .ph img{height:52px;max-width:150px;object-fit:contain;}
+  .ph .company{font-family:'Cairo',Tahoma,sans-serif;font-size:18px;font-weight:800;}
+  .ph .title{font-size:14px;color:var(--accent);font-weight:700;}
+  .ph .r{font-size:11.5px;color:var(--ink-soft);text-align:left;}
+  .card{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:12px;break-inside:avoid;}
+  .card + .card{margin-top:0;}
+  .section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+  .section-head h3{font-size:14px;border-right:4px solid var(--accent);padding-right:8px;}
+  .form-row,.filters{display:flex;flex-wrap:wrap;gap:6px 22px;align-items:flex-end;}
+  .field{margin:0 0 4px;}
+  .field label{display:block;font-size:10.5px;color:var(--muted);}
+  .pv{font-weight:700;font-size:12.5px;}
+  .pv-view{margin-top:6px;font-size:12px;font-weight:700;color:var(--accent);}
+  .grid{display:grid;gap:10px;margin-bottom:12px;}
+  .grid-2{grid-template-columns:repeat(2,1fr);} .grid-3{grid-template-columns:repeat(3,1fr);} .grid-4{grid-template-columns:repeat(4,1fr);}
+  .stat{border:1px solid var(--line);border-radius:8px;padding:10px 12px;break-inside:avoid;}
+  .stat .n{font-family:'Cairo',Tahoma,sans-serif;font-size:20px;font-weight:800;line-height:1.2;}
+  .stat .l{font-size:11px;color:var(--muted);margin-top:2px;}
+  .stat.accent{background:var(--accent-soft);} .stat.accent .n{color:var(--accent);}
+  .stat.warn{background:var(--warn-soft);} .stat.warn .n{color:var(--warn);}
+  .stat.bad{background:var(--bad-soft);} .stat.bad .n{color:var(--bad);}
+  .tbl-wrap{overflow:visible !important;max-height:none !important;border:none;}
+  table{width:100%;border-collapse:collapse;font-size:11.5px;font-variant-numeric:tabular-nums;}
+  th,td{border:1px solid var(--line);padding:5px 7px;text-align:right;white-space:normal !important;vertical-align:top;}
+  thead{display:table-header-group;} thead th{background:var(--surface-2);font-weight:700;}
+  tr{break-inside:avoid;page-break-inside:avoid;}
+  .tag{display:inline-block;padding:1px 7px;border-radius:20px;font-size:10.5px;font-weight:700;border:1px solid var(--line);background:var(--surface-2);}
+  .tag.good{background:var(--good-soft);color:var(--good);border-color:var(--good-soft);}
+  .tag.bad{background:var(--bad-soft);color:var(--bad);border-color:var(--bad-soft);}
+  .tag.warn{background:var(--warn-soft);color:var(--warn);border-color:var(--warn-soft);}
+  .empty{padding:14px;text-align:center;color:var(--muted);}
+  .muted{color:var(--muted);} .small{font-size:11px;}
+  .bar-chart{display:flex;flex-direction:column;gap:6px;}
+  .bar-row{display:grid;grid-template-columns:130px 1fr 60px;align-items:center;gap:8px;}
+  .bar-track{background:var(--surface-2);border-radius:4px;height:9px;overflow:hidden;}
+  .bar-fill{height:100%;background:var(--accent);}
+  details > summary{display:none;} details{display:block;}
+  .foot{margin-top:14px;border-top:1px solid var(--line);padding-top:6px;font-size:10.5px;color:var(--muted);}
+</style></head><body>
+  <div class="ph">
+    <div class="l">
+      ${settings.logo? `<img src="${settings.logo}">`:''}
+      <div><div class="company">${esc(settings.companyName||'نظام إدارة مرتجعات المحلات')}</div><div class="title">${esc(title)}</div></div>
+    </div>
+    <div class="r"><div>تاريخ ووقت سحب التقرير: ${esc(stamp)}</div><div>حُرر بواسطة: ${esc(u.name||u.username||'')}</div></div>
+  </div>
+  ${bodyHtml}
+  <div class="foot">تم إنشاء هذا التقرير آليًا بواسطة نظام إدارة مرتجعات المحلات — ${esc(stamp)}</div>
+</body></html>`;
+  },
+  currentReportTitle(){
+    const tab = this.reportTabs().find(t=>t.id===this.reportsTab);
+    return tab ? tab.label.replace(/^[^؀-ۿA-Za-z0-9]+/, '').trim() : 'تقرير';
+  },
+  /* snapshot of the report on screen, with filter controls turned into plain text */
+  reportSnapshot(){
+    const src = document.getElementById('reportBody');
+    if(!src) return null;
+    const clone = src.cloneNode(true);
+    const live = src.querySelectorAll('input,select,textarea');
+    clone.querySelectorAll('input,select,textarea').forEach((el,i)=>{
+      const l = live[i] || el;
+      if(el.type==='file' || el.type==='hidden'){ el.remove(); return; }
+      let txt;
+      if(el.tagName==='SELECT'){ const o = l.options[l.selectedIndex]; txt = o ? o.text : ''; }
+      else if(el.type==='checkbox' || el.type==='radio'){ txt = l.checked ? '✓' : '✗'; }
+      else txt = l.value;
+      const span = document.createElement('span');
+      span.className = 'pv';
+      span.textContent = (txt||'').trim() || '—';
+      el.replaceWith(span);
+    });
+    clone.querySelectorAll('.pill-tabs').forEach(p=>{
+      const a = p.querySelector('.pill-tab.active');
+      if(a){ const d = document.createElement('div'); d.className='pv-view'; d.textContent = 'العرض: ' + a.textContent.trim(); p.replaceWith(d); }
+      else p.remove();
+    });
+    clone.querySelectorAll('button, .actions, .help-box, .no-print, script').forEach(el=>el.remove());
+    clone.querySelectorAll('[style*="display:none"]').forEach(el=>el.remove());
+    return clone;
+  },
+  printCurrentReport(){
+    const clone = this.reportSnapshot();
+    if(!clone) return;
+    const maxCols = Math.max(0, ...Array.from(clone.querySelectorAll('table')).map(t=>t.querySelectorAll('thead th').length));
+    this.printHtmlDoc(this.buildPrintDoc({ title: this.currentReportTitle(), bodyHtml: clone.innerHTML, landscape: maxCols>7 }));
+  },
+  excelCurrentReport(){
+    const src = document.getElementById('reportBody');
+    const tables = src ? Array.from(src.querySelectorAll('table')) : [];
+    if(!tables.length){ this.notify('مفيش جداول في التقرير ده للتصدير.'); return; }
+    const toNum = (v)=>{
+      if(typeof v!=='string') return v;
+      const t = v.replace(/[٠-٩]/g, dg=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(dg))).replace(/[٬,]/g,'').replace('٫','.').replace(/‏|‎|؜/g,'').trim();
+      return /^-?\d+(\.\d+)?$/.test(t) ? parseFloat(t) : v;
+    };
+    const wb = XLSX.utils.book_new();
+    const used = new Set();
+    tables.forEach((t,i)=>{
+      const card = t.closest('.card');
+      const h = card && card.querySelector('h3');
+      let name = ((h ? h.textContent : '') || ('جدول '+(i+1))).replace(/[\\\/\?\*\[\]:]/g,'').replace(/\s+/g,' ').trim().slice(0,28) || ('جدول '+(i+1));
+      let n = name, k = 2;
+      while(used.has(n)) n = name.slice(0,25) + ' ' + (k++);
+      used.add(n);
+      const heads = t.tHead && t.tHead.rows[0] ? Array.from(t.tHead.rows[0].cells).map(c=>c.innerText.trim()) : [];
+      const keepText = heads.map(h=>/كود|رمز|باركود|رقم|code|barcode/i.test(h)); // ids stay as text (leading zeros, long barcodes)
+      const aoa = Array.from(t.rows).map((tr,ri)=>Array.from(tr.cells).map((c,ci)=>{
+        const v = c.innerText.trim();
+        return (ri===0 && t.tHead) || keepText[ci] ? v : toNum(v);
+      }));
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws['!cols'] = (aoa[0]||[]).map((_,ci)=>({wch: Math.min(45, Math.max(10, ...aoa.map(r=>String(r[ci]==null?'':r[ci]).length+2)))}));
+      XLSX.utils.book_append_sheet(wb, ws, n);
+    });
+    wb.Workbook = {Views:[{RTL:true}]};
+    const out = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+    const fname = this.sanitizeFilename(this.currentReportTitle() + '_' + this.reportStamp().slice(0,10)) + '.xlsx';
+    this.saveFile(fname, new Blob([out], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
   },
 
   reReport(){ this.renderInto('reportBody', ()=> this.renderReportBody()); },
