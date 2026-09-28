@@ -414,7 +414,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:16px 0;}
   <aside class="sidebar" id="sidebar">
     <div class="brand" id="brandWrap"></div>
     <ul class="navlist" id="navlist"></ul>
-    <a class="navlink app-switch" id="transfersAppLink" href="https://transfers-companyapp.netlify.app/" target="_blank" rel="noopener">
+    <a class="navlink app-switch" id="transfersAppLink" href="https://transfers-companyapp.netlify.app/" target="_blank" rel="noopener" style="display:none">
       <span class="ic">🚚</span><span>برنامج التحويلات</span><span class="ext">↗</span>
     </a>
     <div class="side-foot">
@@ -462,7 +462,7 @@ const SESSION_KEY = 'rm_session_v1';
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
 const DEFAULT_TRANSFERS_URL = 'https://transfers-companyapp.netlify.app/';
 function XLSX_colLetter(i){ let s=''; i=+i; do{ s=String.fromCharCode(65+(i%26))+s; i=Math.floor(i/26)-1; }while(i>=0); return s; }
-function todayStr(){ return new Date().toISOString().slice(0,10); }
+function todayStr(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; } // local date (not UTC)
 function nowTime(){ const d=new Date(); return d.toTimeString().slice(0,5); }
 function fmtNum(n){ return Number(n||0).toLocaleString('ar-EG'); }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -865,7 +865,12 @@ const App = {
     if(!wrap) return;
     const settings = (this.db && this.db.settings) || {companyName:'', logo:''};
     const tLink = document.getElementById('transfersAppLink');
-    if(tLink) tLink.href = settings.transfersUrl || DEFAULT_TRANSFERS_URL;
+    if(tLink){
+      tLink.href = settings.transfersUrl || DEFAULT_TRANSFERS_URL;
+      const cu = this.session && this.db.users ? this.currentUser() : null;
+      // the owner always sees it; everyone else only if the owner turned it on for them
+      tLink.style.display = (cu && (this.isOwner() || cu.showTransfers)) ? '' : 'none';
+    }
     const hasCompany = !!(settings.companyName || settings.logo);
     wrap.innerHTML = hasCompany ? `
       <div class="mark">${settings.logo? `<img src="${settings.logo}" style="width:100%;height:100%;object-fit:contain;border-radius:8px;">` : esc((settings.companyName||'؟').trim().slice(0,2))}</div>
@@ -1307,8 +1312,10 @@ const App = {
   refresh(){ saveData(this.db); this.render(); this.renderBrand(); },
 
   /* ---------------- MODAL HELPERS ---------------- */
-  openModal(html){
-    document.getElementById('modalBox').innerHTML = html;
+  openModal(html, wide){
+    const mb = document.getElementById('modalBox');
+    mb.style.maxWidth = wide ? '900px' : '';
+    mb.innerHTML = html;
     document.getElementById('modalBackdrop').classList.add('open');
   },
   closeModal(){ document.getElementById('modalBackdrop').classList.remove('open'); },
@@ -1803,31 +1810,7 @@ const App = {
       this.saveFile('نموذج_استيراد_المرتجعات.xlsx', blob);
     }
   },
-  openImportReturns(){
-    const d = this.db;
-    if(d.stores.length===0 || d.items.length===0){
-      this.notify('من فضلك أضف محل واحد على الأقل وصنف واحد على الأقل قبل استيراد المرتجعات، عشان أسماء المحلات والأصناف تتطابق مع اللي هتكتبه في الملف.');
-      return;
-    }
-    this.openModal(`
-      <button class="modal-close" onclick="App.closeModal()">✕</button>
-      <h3>استيراد المرتجعات من إكسيل</h3>
-      <div class="help-box" style="margin-bottom:14px;">
-        رتّب الملف بالأعمدة دي بالترتيب: <b>التاريخ</b> — <b>الوقت</b> — <b>المحل</b> — <b>الباركود</b> — <b>رمز الصنف</b> — <b>اسم الصنف</b> — <b>شد الصنف</b> — <b>الوحدة (كرتون/حبة/أوتر/كيس/علبة)</b> — <b>الكمية</b> — <b>رقم تحويل المرتجع</b> — <b>السبب</b> — <b>تاريخ الصلاحية (اختياري)</b> — <b>المستودع (اختياري)</b>.<br>
-        الباركود ورمز الصنف واسم الصنف أعمدة منفصلة — يكفي تملأ واحد منهم بس (الأولوية للباركود، ثم رمز الصنف، ثم الاسم) وهيتم التعرف على الصنف تلقائيًا. عمود "شد الصنف" للعرض فقط ومش مستخدم في المطابقة. لازم اسم المحل يتطابق بالظبط مع اللي مسجل في البرنامج. الوقت والوحدة والسبب وتاريخ الصلاحية والمستودع اختياريين.
-      </div>
-      <button class="btn btn-sm" onclick="App.downloadReturnsTemplate()" style="margin-bottom:14px;">⬇ تنزيل نموذج إكسيل فارغ</button>
-      <div class="field">
-        <label>اختر ملف إكسيل (xlsx / xls / csv)</label>
-        <input type="file" id="returnsFile" accept=".xlsx,.xls,.csv">
-      </div>
-      <div id="importReturnsResult" class="small muted"></div>
-      <div class="modal-actions">
-        <button class="btn btn-accent" onclick="App.processReturnsFile()">استيراد المرتجعات</button>
-        <button class="btn" onclick="App.closeModal()">إلغاء</button>
-      </div>
-    `);
-  },
+  openImportReturns(){ this.openSmartImport('returns'); },
   excelCellToDateStr(cell){
     if(cell instanceof Date){
       return `${cell.getFullYear()}-${String(cell.getMonth()+1).padStart(2,'0')}-${String(cell.getDate()).padStart(2,'0')}`;
@@ -1850,90 +1833,255 @@ const App = {
     if(/^\d{1,2}:\d{2}$/.test(s)) return s.length===4? '0'+s : s;
     return s;
   },
-  processReturnsFile(){
-    const input = document.getElementById('returnsFile');
-    const resultBox = document.getElementById('importReturnsResult');
-    if(!input.files || !input.files[0]){ resultBox.textContent = 'اختر ملف أولًا.'; return; }
-    const file = input.files[0];
+  /* =====================================================================
+     SMART IMPORT FOR RETURNS / ORDERS — any sheet, any column order.
+     Only the item (code OR barcode OR name) and the quantity are needed;
+     everything else about the item (code, barcode, pack, unit) comes from
+     the registered items list. Missing date/branch/reason use the defaults
+     chosen in the dialog.
+  ===================================================================== */
+  _moveImport: null,
+  MOVE_FIELDS: {
+    returns: [
+      {k:'qty', label:'الكمية', required:true}, {k:'date', label:'التاريخ'}, {k:'time', label:'الوقت'},
+      {k:'store', label:'المحل / الفرع'}, {k:'warehouse', label:'المستودع'}, {k:'transferNo', label:'رقم تحويل المرتجع'},
+      {k:'reason', label:'السبب'}, {k:'expiry', label:'تاريخ الصلاحية'},
+    ],
+    orders: [
+      {k:'qty', label:'الكمية', required:true}, {k:'date', label:'التاريخ'},
+      {k:'store', label:'المحل / الفرع'}, {k:'warehouse', label:'المستودع المورّد'},
+    ],
+  },
+  _moveFieldOf(h){
+    const n = this._arNorm(h);
+    if(!n) return null;
+    const any = (ws)=> ws.some(w=>n.includes(this._arNorm(w)));
+    if(any(['صلاحيه','انتهاء','expiry','exp date','best before'])) return 'expiry';
+    if(any(['تاريخ','date','اليوم'])) return 'date';
+    if(any(['وقت','الساعه','time'])) return 'time';
+    if(any(['تحويل','رقم المرتجع','رقم الاذن','اذن','سند','مستند','transfer','ref','voucher','doc no'])) return 'transferNo';
+    if(any(['سبب','reason'])) return 'reason';
+    if(any(['مستودع','مخزن','warehouse'])) return 'warehouse';
+    if(any(['فرع','محل','معرض','store','branch','shop'])) return 'store';
+    return null;
+  },
+  _parseDateCell(cell){
+    if(cell instanceof Date && !isNaN(cell)) return `${cell.getFullYear()}-${String(cell.getMonth()+1).padStart(2,'0')}-${String(cell.getDate()).padStart(2,'0')}`;
+    if(typeof cell==='number' && cell>20000 && cell<80000){ // Excel serial date
+      const dt = new Date(Math.round((cell-25569)*86400000));
+      return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth()+1).padStart(2,'0')}-${String(dt.getUTCDate()).padStart(2,'0')}`;
+    }
+    const s = this._arNorm(cell);
+    if(!s) return '';
+    let m = s.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})/);
+    if(m) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+    m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+    if(m){
+      let a=+m[1], b=+m[2], y=m[3].length===2? '20'+m[3] : m[3];
+      let day=a, mon=b;                  // day/month is the local convention
+      if(b>12 && a<=12){ day=b; mon=a; } // clearly month/day
+      return `${y}-${String(mon).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    }
+    return '';
+  },
+  _parseTimeCell(cell){
+    if(cell instanceof Date && !isNaN(cell)) return `${String(cell.getHours()).padStart(2,'0')}:${String(cell.getMinutes()).padStart(2,'0')}`;
+    if(typeof cell==='number' && cell>=0 && cell<1){ const mins=Math.round(cell*1440); return `${String(Math.floor(mins/60)).padStart(2,'0')}:${String(mins%60).padStart(2,'0')}`; }
+    const m = this._arNorm(cell).match(/^(\d{1,2}):(\d{2})/);
+    return m ? `${m[1].padStart(2,'0')}:${m[2]}` : '';
+  },
+  openSmartImport(kind){
+    const d = this.db, u = this.currentUser();
+    if(d.items.length===0){ this.notify('سجّل الأصناف الأول (من صفحة الأصناف) عشان البرنامج يقدر يتعرف عليها في الملف.'); return; }
+    if(d.stores.length===0){ this.notify('أضف محل واحد على الأقل الأول.'); return; }
+    const admin = this.isAdmin();
+    const defStore = (!admin && u.storeId) ? u.storeId : (d.stores[0]||{}).id;
+    this._moveImport = {kind, book:null, sheetIdx:0, map:{}, defStore, defWh: this.storeDefaultWarehouse(defStore) || (u.warehouseId||''),
+      defDate: todayStr(), defReason: kind==='returns' ? (this.reasons()[0]||'أخرى') : ''};
+    const title = kind==='returns' ? 'المرتجعات' : 'الطلبيات';
+    this.openModal(`
+      <button class="modal-close" onclick="App.closeModal()">✕</button>
+      <h3>📥 استيراد ${title} من إكسيل</h3>
+      <div class="help-box" style="margin-bottom:14px;">
+        ارفع <b>أي شيت</b> زي ما هو — يكفي يكون فيه <b>الصنف</b> (بالكود أو الباركود أو الاسم) و<b>الكمية</b>، بأي ترتيب.
+        البرنامج بيتعرف على الصنف ويجيب باقي بياناته (الكود، الباركود، الشد، الوحدة) من الأصناف المسجلة.
+        لو الملف فيه أعمدة زي التاريخ أو الفرع${kind==='returns'?' أو السبب أو رقم التحويل':''} هياخدها، ولو مش موجودة هيستخدم الاختيارات اللي تحت.
+      </div>
+      <div class="field"><label>ملف الإكسيل (xlsx / xls / csv)</label>
+        <input type="file" id="moveFile" accept=".xlsx,.xls,.xlsm,.csv" onchange="App.readMoveFile()"></div>
+      <div id="moveImportPreview"></div>
+      <div class="modal-actions">
+        <button class="btn btn-accent" id="moveImportApply" disabled onclick="App.applyMoveImport()">تأكيد الاستيراد</button>
+        <button class="btn" onclick="App.closeModal()">إلغاء</button>
+      </div>
+    `, true);
+  },
+  readMoveFile(){
+    const input = document.getElementById('moveFile');
+    const box = document.getElementById('moveImportPreview');
+    if(!input.files || !input.files[0]) return;
+    box.innerHTML = '<div class="small muted">جاري قراءة الملف…</div>';
     const reader = new FileReader();
     reader.onload = (e)=>{
       try{
-        const data = new Uint8Array(e.target.result);
-        const wb = XLSX.read(data, {type:'array', cellDates:true});
-        const sheet = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:true, defval:''});
-
-        const headerWords = ['التاريخ','date'];
-        let startIdx = 0;
-        if(rows.length && String(rows[0][0]||'').trim() && headerWords.some(w=>String(rows[0][0]).trim().toLowerCase().includes(w))){
-          startIdx = 1;
-        }
-
-        const d = this.db, u = this.currentUser();
-        const storesByName = new Map(d.stores.map(s=>[s.name.trim().toLowerCase(), s]));
-        const whByName = new Map(d.warehouses.map(w=>[w.name.trim().toLowerCase(), w]));
-        const itemsByBarcode = new Map(d.items.filter(i=>i.barcode).map(i=>[String(i.barcode).trim(), i]));
-        const itemsByCode = new Map(d.items.filter(i=>i.code).map(i=>[i.code.trim().toLowerCase(), i]));
-        const itemsByName = new Map(d.items.map(i=>[i.name.trim().toLowerCase(), i]));
-
-        let added=0, skippedEmpty=0, skippedNoStore=0, skippedNoItem=0, skippedBadRow=0, skippedWrongStore=0;
-        for(let i=startIdx;i<rows.length;i++){
-          const row = rows[i];
-          if(!row || row.every(c=>String(c||'').trim()==='')) continue;
-
-          const date = this.excelCellToDateStr(row[0]);
-          const time = this.excelCellToTimeStr(row[1]) || nowTime();
-          const storeRaw = String(row[2]||'').trim();
-          const barcodeRaw = String(row[3]||'').trim();
-          const codeRaw = String(row[4]||'').trim();
-          const nameRaw = String(row[5]||'').trim();
-          // row[6] = شد الصنف — display-only, not used for matching
-          const unitRaw = String(row[7]||'').trim();
-          const qty = parseFloat(row[8]);
-          const transferNo = String(row[9]||'').trim();
-          const reason = String(row[10]||'').trim() || 'أخرى';
-          const expiry = row[11] ? this.excelCellToDateStr(row[11]) : '';
-          const whRaw = String(row[12]||'').trim();
-
-          if(!date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !storeRaw || (!barcodeRaw && !codeRaw && !nameRaw) || !qty || qty<=0){
-            skippedBadRow++; continue;
-          }
-          const store = storesByName.get(storeRaw.toLowerCase());
-          if(!store){ skippedNoStore++; continue; }
-          if(!this.isAdmin() && store.id!==u.storeId){ skippedWrongStore++; continue; }
-          const item = (barcodeRaw && itemsByBarcode.get(barcodeRaw))
-            || (codeRaw && itemsByCode.get(codeRaw.toLowerCase()))
-            || (nameRaw && itemsByName.get(nameRaw.toLowerCase()));
-          if(!item){ skippedNoItem++; continue; }
-          const wh = whRaw ? whByName.get(whRaw.toLowerCase()) : null;
-          const unit = UNITS.find(un=>un===unitRaw) || (UNITS.includes(item.unit)? item.unit : '') || unitRaw;
-
-          this.db.returns.push({
-            id: uid(), storeId: store.id, itemId: item.id,
-            warehouseId: wh? wh.id : null,
-            unit, qty, transferNo, date, time, reason, expiry
+        const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellDates:true});
+        const maps = this._stockMaps();
+        const st = this._moveImport;
+        const fields = this.MOVE_FIELDS[st.kind];
+        const sheets = wb.SheetNames.map(n=>{
+          const aoa = XLSX.utils.sheet_to_json(wb.Sheets[n], {header:1, raw:true, defval:''});
+          const a = this._analyzeStockSheet(aoa, maps);
+          const map = {};
+          a.header.forEach((h,c)=>{ const f=this._moveFieldOf(h); if(f && map[f]==null && fields.some(x=>x.k===f)) map[f]=c; });
+          // no header for the branch / warehouse? find it by content
+          const storeNames = new Set(this.db.stores.flatMap(s=>[s.name,s.code].filter(Boolean).map(x=>this._idKey(x))));
+          const whNames = new Set(this.db.warehouses.flatMap(w=>[w.name,w.code].filter(Boolean).map(x=>this._idKey(x))));
+          a.cols.forEach(x=>{
+            if(!x.nonEmpty) return;
+            const vals = a.data.slice(0,300).map(r=>this._idKey(r[x.c])).filter(v=>v && !/^\d+$/.test(v));
+            if(!vals.length) return;
+            if(map.store==null && vals.filter(v=>storeNames.has(v)).length/vals.length>=0.6) map.store = x.c;
+            else if(map.warehouse==null && fields.some(f=>f.k==='warehouse') && vals.filter(v=>whNames.has(v)).length/vals.length>=0.6) map.warehouse = x.c;
           });
-          this.adjustStock(item.id,'store',store.id, -qty);
-          if(wh) this.adjustStock(item.id,'warehouse',wh.id, qty);
-          added++;
-        }
-        saveData(this.db);
-        let msg = `تم استيراد <b>${fmtNum(added)}</b> مرتجع جديد.`;
-        const skippedParts = [];
-        if(skippedNoStore) skippedParts.push(`${fmtNum(skippedNoStore)} لعدم تطابق اسم المحل`);
-        if(skippedNoItem) skippedParts.push(`${fmtNum(skippedNoItem)} لعدم تطابق الصنف`);
-        if(skippedWrongStore) skippedParts.push(`${fmtNum(skippedWrongStore)} لأنها لمحل غير محلك`);
-        if(skippedBadRow) skippedParts.push(`${fmtNum(skippedBadRow)} لبيانات ناقصة أو غير صحيحة`);
-        if(skippedParts.length) msg += ' — تم تجاهل: ' + skippedParts.join('، ') + '.';
-        resultBox.innerHTML = msg;
-        this.render();
-        if(added>0 && skippedParts.length===0){ setTimeout(()=>{ this.closeModal(); }, 1800); }
+          const taken = new Set(Object.values(map));
+          map.qty = (a.qtyCands.find(c=>!taken.has(c) && !a.idCols.includes(c)));
+          if(map.qty==null) delete map.qty;
+          const matched = a.data.filter(r=>a.idCols.some(c=>this._matchItem(r[c], maps))).length;
+          return {name:n, a, map, matched};
+        });
+        let bestIdx = 0; sheets.forEach((s,i)=>{ if(s.matched>sheets[bestIdx].matched) bestIdx=i; });
+        st.book = sheets; st.sheetIdx = bestIdx; st.map = Object.assign({}, sheets[bestIdx].map);
+        this.renderMoveImportPreview();
       }catch(err){
         console.error(err);
-        resultBox.textContent = 'تعذّرت قراءة الملف. تأكد أنه بصيغة xlsx أو xls أو csv صحيحة وبنفس ترتيب الأعمدة المطلوب.';
+        box.innerHTML = `<div class="help-box" style="color:var(--bad);">تعذّرت قراءة الملف. تأكد إنه ملف إكسيل (xlsx / xls) أو csv.</div>`;
       }
     };
-    reader.readAsArrayBuffer(file);
+    reader.readAsArrayBuffer(input.files[0]);
+  },
+  _computeMoveImport(){
+    const st = this._moveImport, d = this.db, u = this.currentUser(), admin = this.isAdmin();
+    const a = st.book[st.sheetIdx].a, m = st.map;
+    const maps = this._stockMaps();
+    const storeBy = new Map(); d.stores.forEach(s=>[s.name,s.code].filter(Boolean).forEach(k=>storeBy.set(this._idKey(k), s)));
+    const whBy = new Map(); d.warehouses.forEach(w=>[w.name,w.code].filter(Boolean).forEach(k=>whBy.set(this._idKey(k), w)));
+    const cell = (r,k)=> m[k]==null ? '' : r[m[k]];
+    const out = {rows:[], unmatched:new Map(), noQty:0, noStore:0, wrongStore:0, badDate:0};
+    a.data.forEach(r=>{
+      let it = null;
+      for(const c of a.idCols){ it = this._matchItem(r[c], maps); if(it) break; }
+      const qty = m.qty==null ? NaN : this._parseQty(cell(r,'qty'));
+      if(!it){
+        const label = (a.idCols.length? r[a.idCols[0]] : '') || r.find(v=>typeof v==='string' && v.trim() && isNaN(this._parseQty(v))) || '';
+        if(String(label).trim() && !isNaN(qty) && !/اجمال|مجموع|total|sum/i.test(this._arNorm(label))) out.unmatched.set(String(label).trim(), true);
+        return;
+      }
+      if(isNaN(qty) || qty<=0){ out.noQty++; return; }
+      let storeId = st.defStore;
+      if(m.store!=null && String(cell(r,'store')).trim()!==''){
+        const s = storeBy.get(this._idKey(cell(r,'store')));
+        if(!s){ out.noStore++; return; }
+        storeId = s.id;
+      }
+      if(!storeId){ out.noStore++; return; }
+      if(!admin && u.storeId && storeId!==u.storeId){ out.wrongStore++; return; }
+      let warehouseId = st.defWh || this.storeDefaultWarehouse(storeId) || null;
+      if(m.warehouse!=null && String(cell(r,'warehouse')).trim()!==''){
+        const w = whBy.get(this._idKey(cell(r,'warehouse')));
+        if(w) warehouseId = w.id;
+      }
+      let date = st.defDate;
+      if(m.date!=null && String(cell(r,'date')).trim()!==''){
+        date = this._parseDateCell(cell(r,'date'));
+        if(!/^\d{4}-\d{2}-\d{2}$/.test(date)){ out.badDate++; return; }
+      }
+      const rec = {itemId:it.id, storeId, warehouseId, qty, date};
+      if(st.kind==='returns'){
+        rec.time = (m.time!=null && this._parseTimeCell(cell(r,'time'))) || nowTime();
+        rec.transferNo = m.transferNo!=null ? this._cellStr(cell(r,'transferNo')).trim() : '';
+        rec.reason = (m.reason!=null && String(cell(r,'reason')).trim()) || st.defReason || 'أخرى';
+        rec.expiry = m.expiry!=null ? this._parseDateCell(cell(r,'expiry')) : '';
+        rec.unit = it.unit || '';
+      }
+      out.rows.push(rec);
+    });
+    out.unmatched = Array.from(out.unmatched.keys());
+    return out;
+  },
+  renderMoveImportPreview(){
+    const st = this._moveImport, d = this.db;
+    const box = document.getElementById('moveImportPreview');
+    const btn = document.getElementById('moveImportApply');
+    if(!box || !st || !st.book) return;
+    const a = st.book[st.sheetIdx].a, admin = this.isAdmin();
+    const colName = c=> (a.header[c] && String(a.header[c]).trim()) || ('عمود ' + XLSX_colLetter(c));
+    const res = this._computeMoveImport();
+    st.result = res;
+    btn.disabled = res.rows.length===0;
+    const fields = this.MOVE_FIELDS[st.kind];
+    const colOpts = (k)=> `<option value="">— مش موجود في الملف —</option>` +
+      Array.from({length:a.cols.length},(_,c)=>c).filter(c=>a.cols[c].nonEmpty).map(c=>`<option value="${c}" ${st.map[k]===c?'selected':''}>${esc(colName(c))}</option>`).join('');
+    const storeOpts = (admin? d.stores : d.stores.filter(s=>s.id===st.defStore)).map(s=>`<option value="${s.id}" ${st.defStore===s.id?'selected':''}>${esc(s.name)}</option>`).join('');
+    const whOpts = `<option value="">—</option>` + d.warehouses.map(w=>`<option value="${w.id}" ${st.defWh===w.id?'selected':''}>${esc(w.name)}</option>`).join('');
+    const reasons = this.reasons() || [];
+    const sample = res.rows.slice(0,8);
+    const extraSkipped = res.noQty + res.noStore + res.wrongStore + res.badDate;
+    box.innerHTML = `
+      <div class="card" style="padding:10px 12px;margin:6px 0 10px;">
+        ${st.book.length>1? `<div class="field"><label>الشيت</label><select onchange="App._moveImport.sheetIdx=+this.value;App._moveImport.map=Object.assign({},App._moveImport.book[+this.value].map);App.renderMoveImportPreview()">
+          ${st.book.map((s,i)=>`<option value="${i}" ${i===st.sheetIdx?'selected':''}>${esc(s.name)} (${fmtNum(s.matched)} صنف متعرف)</option>`).join('')}</select></div>`:''}
+        <div class="small" style="margin-bottom:8px;">عمود الصنف: <b>${a.idCols.length? a.idCols.slice(0,2).map(c=>esc(colName(c))).join(' / ') : '<span style="color:var(--bad)">مش لاقي أصناف مسجلة في الملف</span>'}</b></div>
+        <div style="font-weight:700;font-size:13px;margin-bottom:6px;">كل خانة هتتاخد من أنهي عمود (اتحدد تلقائيًا — غيّر لو في حاجة غلط):</div>
+        <div class="form-row" style="grid-template-columns:1fr 1fr 1fr 1fr;">
+          ${fields.map(f=>`<div class="field" style="margin-bottom:6px;"><label>${f.label}${f.required?' *':''}</label>
+            <select onchange="App._moveImport.map['${f.k}']=this.value===''?null:+this.value;App.renderMoveImportPreview()">${colOpts(f.k)}</select></div>`).join('')}
+        </div>
+        <div style="font-weight:700;font-size:13px;margin:8px 0 6px;">لو الخانة مش موجودة في الملف (أو فاضية) استخدم:</div>
+        <div class="form-row" style="grid-template-columns:1fr 1fr 1fr${st.kind==='returns'?' 1fr':''};">
+          <div class="field" style="margin-bottom:0;"><label>المحل</label><select ${admin?'':'disabled'} onchange="App._moveImport.defStore=this.value;App.renderMoveImportPreview()">${storeOpts}</select></div>
+          <div class="field" style="margin-bottom:0;"><label>المستودع</label><select onchange="App._moveImport.defWh=this.value;App.renderMoveImportPreview()">${whOpts}</select></div>
+          <div class="field" style="margin-bottom:0;"><label>التاريخ</label><input type="date" value="${st.defDate}" onchange="App._moveImport.defDate=this.value;App.renderMoveImportPreview()"></div>
+          ${st.kind==='returns'? `<div class="field" style="margin-bottom:0;"><label>السبب</label><select onchange="App._moveImport.defReason=this.value;App.renderMoveImportPreview()">
+            ${(reasons.length?reasons:['أخرى']).map(x=>`<option ${st.defReason===x?'selected':''}>${esc(x)}</option>`).join('')}</select></div>`:''}
+        </div>
+      </div>
+      <div class="grid grid-3" style="margin-bottom:10px;">
+        <div class="stat accent"><div class="n">${fmtNum(res.rows.length)}</div><div class="l">${st.kind==='returns'?'مرتجع':'طلبية'} هيتسجل</div></div>
+        <div class="stat ${res.unmatched.length?'bad':''}"><div class="n">${fmtNum(res.unmatched.length)}</div><div class="l">صنف في الملف مش مسجل عندك</div></div>
+        <div class="stat ${extraSkipped?'warn':''}"><div class="n">${fmtNum(extraSkipped)}</div><div class="l">صف اتساب${res.noQty?` — ${fmtNum(res.noQty)} من غير كمية`:''}${res.noStore?` — ${fmtNum(res.noStore)} فرع مش معروف`:''}${res.wrongStore?` — ${fmtNum(res.wrongStore)} لفرع غير فرعك`:''}${res.badDate?` — ${fmtNum(res.badDate)} تاريخ غلط`:''}</div></div>
+      </div>
+      ${res.unmatched.length? `<div class="help-box" style="margin-bottom:10px;">مش مسجلين في الأصناف (هيتسابوا): ${res.unmatched.slice(0,15).map(x=>`<span class="tag bad" style="margin:2px;">${esc(x)}</span>`).join('')}${res.unmatched.length>15?` و${fmtNum(res.unmatched.length-15)} غيرهم`:''}</div>`:''}
+      ${sample.length? `<div class="small muted" style="margin-bottom:4px;">معاينة — بيانات الصنف جاية من الأصناف المسجلة:</div>
+      <div class="tbl-wrap"><table class="tbl"><thead><tr><th>التاريخ</th><th>المحل</th><th>الصنف</th><th>الكود</th><th>الباركود</th><th>الشد</th><th>الكمية</th>${st.kind==='returns'?'<th>رقم التحويل</th><th>السبب</th>':''}</tr></thead><tbody>
+        ${sample.map(r=>{ const it=d.items.find(i=>i.id===r.itemId)||{};
+          return `<tr><td>${esc(r.date)}</td><td>${esc(this.storeName(r.storeId)||'—')}</td><td>${esc(it.name||'')}</td><td>${esc(it.code||'—')}</td><td>${esc(it.barcode||'—')}</td><td>${esc(it.packSize||'—')}</td><td>${fmtNum(r.qty)} ${esc(it.unit||'')}</td>${st.kind==='returns'?`<td>${esc(r.transferNo||'—')}</td><td>${esc(r.reason)}</td>`:''}</tr>`; }).join('')}
+      </tbody></table></div>${res.rows.length>sample.length?`<div class="small muted" style="margin-top:4px;">و${fmtNum(res.rows.length-sample.length)} صف كمان…</div>`:''}`:''}
+    `;
+  },
+  applyMoveImport(){
+    const st = this._moveImport;
+    const res = st && st.result;
+    if(!res || !res.rows.length) return;
+    res.rows.forEach(r=>{
+      if(st.kind==='returns'){
+        this.db.returns.push({id:uid(), storeId:r.storeId, itemId:r.itemId, warehouseId:r.warehouseId, unit:r.unit, qty:r.qty,
+          transferNo:r.transferNo, date:r.date, time:r.time, reason:r.reason, expiry:r.expiry});
+        // a return moves stock from the store back to the warehouse
+        this.adjustStock(r.itemId,'store',r.storeId, -r.qty);
+        if(r.warehouseId) this.adjustStock(r.itemId,'warehouse',r.warehouseId, r.qty);
+      }else{
+        this.db.orders.push({id:uid(), storeId:r.storeId, itemId:r.itemId, qty:r.qty, date:r.date, warehouseId:r.warehouseId});
+        // an order moves stock from the warehouse to the store
+        this.adjustStock(r.itemId,'store',r.storeId, r.qty);
+        if(r.warehouseId) this.adjustStock(r.itemId,'warehouse',r.warehouseId, -r.qty);
+      }
+    });
+    const label = st.kind==='returns' ? 'مرتجع' : 'طلبية';
+    this.logActivity(`استورد ${fmtNum(res.rows.length)} ${label} من إكسيل`);
+    this._moveImport = null;
+    this.closeModal();
+    this.refresh();
+    this.notify(`تم تسجيل ${fmtNum(res.rows.length)} ${label} من الملف ✅`);
   },
 
   /* =====================================================================
@@ -1961,6 +2109,7 @@ const App = {
       <div class="section-head">
         <h3>سجل الطلبيات <span class="muted small">(${fmtNum(rows.length)} عملية — إجمالي الكمية ${fmtNum(totalQty)})</span></h3>
         <div class="actions">
+          ${this.can('orders.add')? `<button class="btn btn-sm" onclick="App.openSmartImport('orders')">📥 استيراد من إكسيل</button>`:''}
           ${this.can('orders.add')? `<button class="btn btn-accent btn-sm" onclick="App.openOrderForm()">+ تسجيل طلبية</button>`:''}
         </div>
       </div>
@@ -2128,6 +2277,11 @@ const App = {
           ${this.can('items.edit')? `<button class="btn btn-accent btn-sm" onclick="App.openItemForm()">+ إضافة صنف</button>`:''}
         </div></div>
 
+      ${(()=>{ const bad = this.can('items.edit') ? this.badItems() : []; return bad.length? `
+      <div class="help-box" style="margin-bottom:14px;border-color:var(--warn);display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span style="flex:1;min-width:240px;">⚠️ فيه <b>${fmtNum(bad.length)}</b> صنف اسمهم رقم بس (زي "1" و"#") — دول اتسجلوا غلط من استيراد إكسيل قديم وأعمدتهم متلخبطة. احذفهم واستورد الشيت تاني بالاستيراد الجديد.</span>
+        <button class="btn btn-danger btn-sm" onclick="App.deleteBadItems()">🧹 حذف الأصناف المتسجلة غلط (${fmtNum(bad.length)})</button>
+      </div>`:''; })()}
       <div class="filters card" style="margin-bottom:14px;">
         <div class="field" style="flex:2;min-width:220px;">
           <label>بحث بالاسم أو رمز الصنف أو الباركود</label>
@@ -2353,7 +2507,7 @@ const App = {
         <button class="btn btn-accent" id="stockImportApply" disabled onclick="App.applyStockImport()">تأكيد وتحديث الأرصدة</button>
         <button class="btn" onclick="App.closeModal()">إلغاء</button>
       </div>
-    `);
+    `, true);
   },
 
   /* ---- smart matching helpers (any sheet layout) ---- */
@@ -2535,11 +2689,11 @@ const App = {
         <div class="stat"><div class="n">${fmtNum(res.emptyQty + res.unmatchedLoc)}</div><div class="l">صف اتساب (كمية فاضية${res.useLoc?' أو موقع مش معروف':''})</div></div>
       </div>
       ${res.unmatched.length? `<div class="help-box" style="margin-bottom:10px;">مش مسجلين في الأصناف (هيتسابوا): ${res.unmatched.slice(0,15).map(x=>`<span class="tag bad" style="margin:2px;">${esc(x)}</span>`).join('')}${res.unmatched.length>15?` و${fmtNum(res.unmatched.length-15)} غيرهم`:''}</div>`:''}
-      ${res.rows.length? `<div class="tbl-wrap" style="max-height:260px;overflow:auto;"><table class="tbl"><thead><tr>${res.useLoc?'<th>الموقع</th>':''}<th>الصنف</th><th>الرصيد الحالي</th><th>${add?'هيتضاف':'من الملف'}</th><th>الرصيد بعد التحديث</th></tr></thead><tbody>
+      ${res.rows.length? `<div class="tbl-wrap" style="max-height:260px;overflow:auto;"><table class="tbl"><thead><tr>${res.useLoc?'<th>الموقع</th>':''}<th>الصنف</th><th>الكود</th><th>الشد</th><th>الوحدة</th><th>الرصيد الحالي</th><th>${add?'هيتضاف':'من الملف'}</th><th>الرصيد بعد التحديث</th></tr></thead><tbody>
         ${res.rows.map(r=>{
           const cur = this.getStock(r.itemId, r.locType, r.locId);
           const next = add ? cur + r.qty : r.qty;
-          return `<tr>${res.useLoc?`<td>${esc(locLabel(r))}</td>`:''}<td>${esc(this.itemName(r.itemId))}</td><td>${fmtNum(cur)}</td><td>${add&&r.qty>0?'+':''}${fmtNum(r.qty)}</td><td><b>${fmtNum(next)}</b></td></tr>`;
+          return `<tr>${res.useLoc?`<td>${esc(locLabel(r))}</td>`:''}<td>${esc(this.itemName(r.itemId))}</td><td>${esc((this.db.items.find(i=>i.id===r.itemId)||{}).code||'—')}</td><td>${esc((this.db.items.find(i=>i.id===r.itemId)||{}).packSize||'—')}</td><td>${esc(this.itemUnit(r.itemId)||'—')}</td><td>${fmtNum(cur)}</td><td>${add&&r.qty>0?'+':''}${fmtNum(r.qty)}</td><td><b>${fmtNum(next)}</b></td></tr>`;
         }).join('')}
       </tbody></table></div>`: (st.qtyCol==null? `<div class="help-box">مش لاقي عمود فيه كميات — اختاره من القائمة فوق.</div>`:'')}
     `;
@@ -2602,78 +2756,206 @@ const App = {
     this.saveFile('نموذج_استيراد_الأصناف.xlsx', blob);
   },
 
+  /* ---------------- ITEMS IMPORT (any sheet layout — every column goes to its own field) ---------------- */
+  _itemsImport: null,
+  ITEM_FIELDS: [
+    {k:'name',     label:'اسم الصنف', required:true},
+    {k:'code',     label:'رمز الصنف (الكود)'},
+    {k:'barcode',  label:'الباركود'},
+    {k:'packSize', label:'شد الصنف'},
+    {k:'unit',     label:'الوحدة'},
+    {k:'cost',     label:'تكلفة الوحدة'},
+  ],
+  /* which item field a header cell belongs to (order matters: "باركود" contains "كود") */
+  _itemFieldOf(h){
+    const n = this._arNorm(h);
+    if(!n) return null;
+    const any = (ws)=> ws.some(w=>n.includes(this._arNorm(w)));
+    if(any(['تصنيف','فئه','مجموعه','قسم','category','group','class'])) return null;
+    if(any(['باركود','بار كود','barcode','bar code','ean','upc'])) return 'barcode';
+    if(any(['كود','رمز','رقم الصنف','رقم المنتج','رقم الماده','code','sku','item no','item number','article'])) return 'code';
+    if(any(['وحده','unit','uom'])) return 'unit';
+    if(any(['شد','عبوه','تعبئه','pack','حجم','عدد في','قطع','pcs'])) return 'packSize';
+    if(any(['تكلفه','cost','سعر','price'])) return 'cost';
+    if(any(['اسم','صنف','بيان','وصف','منتج','ماده','name','item','description','product'])) return 'name';
+    return null;
+  },
+  _analyzeItemsSheet(aoa){
+    let hdrIdx=-1, best=0, bestMap=null;
+    for(let r=0; r<Math.min(aoa.length,30); r++){
+      const row = aoa[r]||[];
+      const map = {}; let sc=0;
+      row.forEach((c,ci)=>{
+        if(typeof c!=='string') return;
+        const f = this._itemFieldOf(c);
+        if(f && map[f]==null){ map[f]=ci; sc++; }
+      });
+      if(sc>best && map.name!=null){ best=sc; hdrIdx=r; bestMap=map; }
+    }
+    const header = hdrIdx>=0 ? (aoa[hdrIdx]||[]).map(c=>this._cellStr(c).trim()) : [];
+    const data = aoa.slice(hdrIdx+1).filter(r=>r && r.some(c=>String(c).trim()!==''));
+    const nCols = Math.max(header.length, ...data.slice(0,300).map(r=>r.length), 0);
+    let map = bestMap;
+    if(!map){ // no recognizable header: fall back to the classic order name, code, barcode, pack, unit
+      map = {name:0, code:1, barcode:2, packSize:3, unit:4};
+      Object.keys(map).forEach(k=>{ if(map[k]>=nCols) delete map[k]; });
+    }
+    return {hdrIdx, header, data, nCols, map, score: hdrIdx>=0? best : 0};
+  },
   openImportItems(){
+    this._itemsImport = {book:null, sheetIdx:0, map:{}, existing:'fill'};
     this.openModal(`
       <button class="modal-close" onclick="App.closeModal()">✕</button>
-      <h3>استيراد الأصناف من إكسيل</h3>
+      <h3>📥 استيراد الأصناف من إكسيل</h3>
       <div class="help-box" style="margin-bottom:14px;">
-        رتّب الملف بالأعمدة دي بالترتيب: <b>اسم الصنف</b> — <b>رمز الصنف</b> — <b>الباركود</b> — <b>شد الصنف</b> — <b>الوحدة</b>.
-        الاسم فقط إجباري والباقي اختياري. أول صف عناوين هيتجاهله البرنامج تلقائيًا.
-        لو الصنف موجود بنفس الباركود أو نفس الاسم هيتم تجاهله عشان منكررش الأصناف.
+        ارفع <b>أي شيت أصناف عندك زي ما هو</b> — مش لازم ترتيب معيّن للأعمدة. البرنامج بيقرا عناوين الأعمدة
+        (زي "إسم الصنف" / "كود الصنف" / "BarCode" / "الشد" / "الوحدة") ويحط كل عمود في مكانه، وتقدر تراجع وتعدّل قبل الحفظ.
+        الأعمدة الزيادة زي "التصنيف" أو "#" بتتساب.
       </div>
-      <button class="btn btn-sm" onclick="App.downloadItemsTemplate()" style="margin-bottom:14px;">⬇ تنزيل نموذج إكسيل فارغ</button>
-      <div class="field">
-        <label>اختر ملف إكسيل (xlsx / xls / csv)</label>
-        <input type="file" id="itemsFile" accept=".xlsx,.xls,.csv">
-      </div>
-      <div id="importResult" class="small muted"></div>
+      <div class="field"><label>ملف الإكسيل (xlsx / xls / csv)</label>
+        <input type="file" id="itemsFile" accept=".xlsx,.xls,.xlsm,.csv" onchange="App.readItemsFile()"></div>
+      <div id="importResult"></div>
       <div class="modal-actions">
-        <button class="btn btn-accent" onclick="App.processItemsFile()">استيراد الأصناف</button>
+        <button class="btn btn-accent" id="itemsImportApply" disabled onclick="App.applyItemsImport()">استيراد الأصناف</button>
         <button class="btn" onclick="App.closeModal()">إلغاء</button>
       </div>
-    `);
+    `, true);
   },
-
-  processItemsFile(){
+  readItemsFile(){
     const input = document.getElementById('itemsFile');
-    const resultBox = document.getElementById('importResult');
-    if(!input.files || !input.files[0]){ resultBox.textContent = 'اختر ملف أولًا.'; return; }
-    const file = input.files[0];
+    const box = document.getElementById('importResult');
+    if(!input.files || !input.files[0]) return;
+    box.innerHTML = '<div class="small muted">جاري قراءة الملف…</div>';
     const reader = new FileReader();
     reader.onload = (e)=>{
       try{
-        const data = new Uint8Array(e.target.result);
-        const wb = XLSX.read(data, {type:'array'});
-        const sheet = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(sheet, {header:1, raw:false, defval:''});
-
-        const headerWords = ['اسم الصنف','الصنف','item','name','اسم المنتج'];
-        let startIdx = 0;
-        if(rows.length && String(rows[0][0]||'').trim() && headerWords.some(w=>String(rows[0][0]).trim().toLowerCase().includes(w))){
-          startIdx = 1;
-        }
-
-        const existingNames = new Set(this.db.items.map(i=>i.name.trim().toLowerCase()));
-        const existingBarcodes = new Set(this.db.items.map(i=>(i.barcode||'').trim()).filter(Boolean));
-        let added=0, skippedDup=0, skippedEmpty=0;
-        for(let i=startIdx;i<rows.length;i++){
-          const row = rows[i];
-          if(!row) continue;
-          const name = String(row[0]||'').trim();
-          const code = String(row[1]||'').trim();
-          const barcode = String(row[2]||'').trim();
-          const packSize = String(row[3]||'').trim();
-          const unit = String(row[4]||'').trim();
-          if(!name){ skippedEmpty++; continue; }
-          const key = name.toLowerCase();
-          if(existingNames.has(key) || (barcode && existingBarcodes.has(barcode))){ skippedDup++; continue; }
-          this.db.items.push({id:uid(), name, code, barcode, packSize, unit});
-          existingNames.add(key);
-          if(barcode) existingBarcodes.add(barcode);
-          added++;
-        }
-        saveData(this.db);
-        resultBox.innerHTML = `تم استيراد <b>${fmtNum(added)}</b> صنف جديد.` +
-          (skippedDup? ` — تم تجاهل ${fmtNum(skippedDup)} لأنه مكرر (بالاسم أو الباركود).`:'') +
-          (skippedEmpty? ` — تم تجاهل ${fmtNum(skippedEmpty)} صف فارغ.`:'');
-        this.render();
-        setTimeout(()=>{ this.closeModal(); }, 1800);
+        const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+        const sheets = wb.SheetNames.map(n=>{
+          const aoa = XLSX.utils.sheet_to_json(wb.Sheets[n], {header:1, raw:true, defval:''});
+          return {name:n, a:this._analyzeItemsSheet(aoa)};
+        });
+        let bestIdx = 0; sheets.forEach((s,i)=>{ const b=sheets[bestIdx].a; if(s.a.score>b.score || (s.a.score===b.score && s.a.data.length>b.data.length)) bestIdx=i; });
+        const st = this._itemsImport;
+        st.book = sheets; st.sheetIdx = bestIdx; st.map = Object.assign({}, sheets[bestIdx].a.map);
+        this.renderItemsImportPreview();
       }catch(err){
         console.error(err);
-        resultBox.textContent = 'تعذّرت قراءة الملف. تأكد أنه بصيغة xlsx أو xls أو csv صحيحة.';
+        box.innerHTML = `<div class="help-box" style="color:var(--bad);">تعذّرت قراءة الملف. تأكد إنه ملف إكسيل (xlsx / xls) أو csv.</div>`;
       }
     };
-    reader.readAsArrayBuffer(file);
+    reader.readAsArrayBuffer(input.files[0]);
+  },
+  _computeItemsImport(){
+    const st = this._itemsImport;
+    const a = st.book[st.sheetIdx].a, m = st.map;
+    const get = (r,k)=> m[k]==null ? '' : this._cellStr(r[m[k]]).trim();
+    const byKey = new Map(), byName = new Map();
+    this.db.items.forEach(it=>{
+      if(it.barcode) byKey.set('b:'+this._idKey(it.barcode), it);
+      if(it.code) byKey.set('c:'+this._idKey(it.code), it);
+      if(it.name) byName.set(this._arNorm(it.name), it);
+    });
+    const out = {add:[], update:[], skipped:0, bad:0};
+    const seen = new Set();
+    a.data.forEach(r=>{
+      const rec = {name:get(r,'name'), code:get(r,'code'), barcode:get(r,'barcode'), packSize:get(r,'packSize'), unit:get(r,'unit')};
+      const costTxt = get(r,'cost'); const cost = costTxt===''? null : this._parseQty(costTxt);
+      if(!rec.name){ out.skipped++; return; }
+      // a "name" that is only a number / "#" means the columns are misplaced — never save it as an item
+      if(/^[#\d\s.,٠-٩]+$/.test(rec.name) || /^(اجمالي|الاجمالي|المجموع|total)$/.test(this._arNorm(rec.name))){ out.bad++; return; }
+      const nk = this._arNorm(rec.name);
+      const dupKey = (rec.barcode&&'b:'+this._idKey(rec.barcode)) || (rec.code&&'c:'+this._idKey(rec.code)) || 'n:'+nk;
+      if(seen.has(dupKey)){ out.skipped++; return; }
+      seen.add(dupKey);
+      const ex = (rec.barcode && byKey.get('b:'+this._idKey(rec.barcode))) || (rec.code && byKey.get('c:'+this._idKey(rec.code))) || byName.get(nk);
+      if(ex) out.update.push({item:ex, rec, cost});
+      else out.add.push({rec, cost});
+    });
+    return out;
+  },
+  renderItemsImportPreview(){
+    const st = this._itemsImport;
+    const box = document.getElementById('importResult');
+    const btn = document.getElementById('itemsImportApply');
+    if(!box || !st || !st.book) return;
+    const a = st.book[st.sheetIdx].a;
+    const colName = c=> (a.header[c] && String(a.header[c]).trim()) || ('عمود ' + XLSX_colLetter(c));
+    const res = this._computeItemsImport();
+    st.result = res;
+    btn.disabled = (res.add.length + res.update.length)===0 || st.map.name==null;
+    const colOpts = (k)=> `<option value="">— مش موجود في الملف —</option>` +
+      Array.from({length:a.nCols},(_,c)=>c).map(c=>`<option value="${c}" ${st.map[k]===c?'selected':''}>${esc(colName(c))}</option>`).join('');
+    const sample = res.add.concat(res.update).slice(0,6).map(x=>x.rec);
+    box.innerHTML = `
+      <div class="card" style="padding:10px 12px;margin:6px 0 10px;">
+        ${st.book.length>1? `<div class="field"><label>الشيت</label><select onchange="App._itemsImport.sheetIdx=+this.value;App._itemsImport.map=Object.assign({},App._itemsImport.book[+this.value].a.map);App.renderItemsImportPreview()">
+          ${st.book.map((s,i)=>`<option value="${i}" ${i===st.sheetIdx?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div>`:''}
+        <div style="font-weight:700;font-size:13px;margin-bottom:6px;">كل خانة في البرنامج هتتملى من أنهي عمود (اتحدد تلقائيًا — غيّر لو في حاجة غلط):</div>
+        <div class="form-row" style="grid-template-columns:1fr 1fr 1fr;">
+          ${this.ITEM_FIELDS.map(f=>`<div class="field" style="margin-bottom:6px;"><label>${f.label}${f.required?' *':''}</label>
+            <select onchange="App._itemsImport.map['${f.k}']=this.value===''?null:+this.value;App.renderItemsImportPreview()">${colOpts(f.k)}</select></div>`).join('')}
+        </div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:4px;" class="small">
+          <span>لو الصنف موجود قبل كده:</span>
+          <label style="display:inline-flex;gap:5px;align-items:center;cursor:pointer;"><input type="radio" name="itExisting" style="width:auto;" ${st.existing==='fill'?'checked':''} onchange="App._itemsImport.existing='fill';App.renderItemsImportPreview()"> كمّل البيانات الناقصة بس</label>
+          <label style="display:inline-flex;gap:5px;align-items:center;cursor:pointer;"><input type="radio" name="itExisting" style="width:auto;" ${st.existing==='overwrite'?'checked':''} onchange="App._itemsImport.existing='overwrite';App.renderItemsImportPreview()"> حدّث بياناته كلها من الملف</label>
+        </div>
+      </div>
+      ${st.map.name==null? `<div class="help-box" style="color:var(--bad);margin-bottom:10px;">لازم تختار عمود "اسم الصنف".</div>`:''}
+      <div class="grid grid-3" style="margin-bottom:10px;">
+        <div class="stat accent"><div class="n">${fmtNum(res.add.length)}</div><div class="l">صنف جديد هيتضاف</div></div>
+        <div class="stat"><div class="n">${fmtNum(res.update.length)}</div><div class="l">صنف موجود ${st.existing==='fill'?'هتتكمّل بياناته':'هتتحدث بياناته'}</div></div>
+        <div class="stat ${res.bad?'warn':''}"><div class="n">${fmtNum(res.bad + res.skipped)}</div><div class="l">صف اتساب (فاضي / مكرر / اسمه رقم)</div></div>
+      </div>
+      ${sample.length? `<div class="small muted" style="margin-bottom:4px;">معاينة — كده الأصناف هتظهر في البرنامج:</div>
+      <div class="tbl-wrap"><table class="tbl"><thead><tr><th>اسم الصنف</th><th>رمز الصنف</th><th>الباركود</th><th>شد الصنف</th><th>الوحدة</th></tr></thead><tbody>
+        ${sample.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.code||'—')}</td><td>${esc(r.barcode||'—')}</td><td>${esc(r.packSize||'—')}</td><td>${esc(r.unit||'—')}</td></tr>`).join('')}
+      </tbody></table></div>`:''}
+    `;
+  },
+  applyItemsImport(){
+    const st = this._itemsImport;
+    const res = st && st.result;
+    if(!res) return;
+    res.add.forEach(({rec,cost})=>{
+      this.db.items.push({id:uid(), name:rec.name, code:rec.code, barcode:rec.barcode, packSize:rec.packSize, unit:rec.unit, cost: cost!=null&&!isNaN(cost)? cost : 0});
+    });
+    const over = st.existing==='overwrite';
+    let changed = 0;
+    res.update.forEach(({item,rec,cost})=>{
+      let ch = false;
+      ['name','code','barcode','packSize','unit'].forEach(k=>{
+        if(st.map[k]==null || !rec[k]) return;
+        if(over ? item[k]!==rec[k] : !item[k]){ item[k] = rec[k]; ch = true; }
+      });
+      if(cost!=null && !isNaN(cost) && (over || !item.cost)){ if(item.cost!==cost){ item.cost = cost; ch = true; } }
+      if(ch) changed++;
+    });
+    this.logActivity(`استورد أصناف من إكسيل: ${fmtNum(res.add.length)} جديد، ${fmtNum(changed)} اتحدّث`);
+    this._itemsImport = null;
+    this.closeModal();
+    this.refresh();
+    this.notify(`تم: ${fmtNum(res.add.length)} صنف جديد اتضاف، و${fmtNum(changed)} صنف موجود اتحدّثت بياناته ✅`);
+  },
+
+  /* ---------------- CLEANUP: items saved with misplaced columns by the old importer ---------------- */
+  badItems(){
+    const used = new Set();
+    (this.db.returns||[]).forEach(r=>used.add(r.itemId));
+    (this.db.orders||[]).forEach(o=>used.add(o.itemId));
+    return this.db.items.filter(it=>/^[#\d\s.,٠-٩]*$/.test(String(it.name||'').trim()) && !used.has(it.id));
+  },
+  deleteBadItems(){
+    const bad = this.badItems();
+    if(!bad.length) return;
+    this.confirmAction(`حذف ${fmtNum(bad.length)} صنف اسمهم رقم بس (اتسجلوا غلط من استيراد قديم)؟ مفيش عليهم أي مرتجعات أو طلبيات.`, ()=>{
+      const ids = new Set(bad.map(i=>i.id));
+      this.db.items = this.db.items.filter(i=>!ids.has(i.id));
+      this.db.stock = this.db.stock.filter(s=>!ids.has(s.itemId));
+      ids.forEach(id=>this.itemsSelected.delete(id));
+      this.logActivity(`حذف ${fmtNum(ids.size)} صنف متسجلين غلط (اسمهم رقم)`);
+      this.refresh();
+    });
   },
 
   renderStores(){
@@ -3092,6 +3374,12 @@ const App = {
         </div>
       </div>
       <div class="small muted" style="margin-top:-6px;margin-bottom:10px;">لازم تختار محل أو مستودع (على الأقل واحد منهم) — إلا لو المستخدم "مدير عام".</div>
+      ${this.isOwner()? `<div class="card" style="padding:10px 12px;margin-bottom:12px;">
+        <label style="display:flex;gap:8px;align-items:center;cursor:pointer;margin:0;">
+          <input type="checkbox" id="u_showTransfers" style="width:auto;flex:none;" ${editing&&editing.showTransfers?'checked':''}>
+          <span>🚚 إظهار زرار <b>"برنامج التحويلات"</b> لهذا المستخدم</span>
+        </label>
+      </div>`:''}
       <div id="u_jobWrap" style="display:${isAdminRole?'none':'block'}">
         <hr class="sep">
         <div class="field">
@@ -3121,6 +3409,8 @@ const App = {
     const phone=document.getElementById('u_phone').value.trim();
     const storeId=role==='admin'?null:(document.getElementById('u_store').value||null);
     const warehouseId=role==='admin'?null:(document.getElementById('u_warehouse').value||null);
+    const stEl = document.getElementById('u_showTransfers');
+    const showTransfers = stEl ? stEl.checked : false;
     if(!username){this.notify('اكتب اسم مستخدم.');return;}
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){this.notify('البريد الإلكتروني إلزامي ولازم يكون بصيغة صحيحة — بيُستخدم لإرسال رمز التحقق عند تسجيل الدخول.');return;}
     if(role==='store' && !storeId && !warehouseId){this.notify('اختر المحل أو المستودع المرتبط بهذا المستخدم (لازم واحد منهم على الأقل).');return;}
@@ -3151,12 +3441,12 @@ const App = {
 
     if(id){
       const u = this.db.users.find(x=>x.id===id);
-      Object.assign(u,{name,username,role,storeId,warehouseId,jobId,jobTitle,email,phone,permissions:role==='store'?permissions:null});
+      Object.assign(u,{name,username,role,storeId,warehouseId,jobId,jobTitle,email,phone,showTransfers,permissions:role==='store'?permissions:null});
       if(pass) u.password=pass;
       this.logActivity(`عدّل بيانات مستخدم "${username}"${pass?' (وغيّر كلمة المرور)':''}`);
     }else{
       if(!pass){this.notify('اكتب كلمة مرور للمستخدم الجديد.');return;}
-      this.db.users.push({id:uid(),name,username,password:pass,role,storeId,warehouseId,jobId,jobTitle,email,phone,permissions});
+      this.db.users.push({id:uid(),name,username,password:pass,role,storeId,warehouseId,jobId,jobTitle,email,phone,showTransfers,permissions});
       this.logActivity(`أضاف مستخدم جديد "${username}"`);
     }
     this.closeModal(); this.refresh(); this.buildNav();
