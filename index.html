@@ -4,6 +4,22 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>نظام إدارة مرتجعات المحلات</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#151D2B">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="المرتجعات">
+<script>
+/* installable app: register the offline shell + remember the browser's install prompt */
+window.__installEvt = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); window.__installEvt = e; if(typeof App!=='undefined' && App.refreshInstallLink) App.refreshInstallLink(); });
+window.addEventListener('appinstalled', () => { window.__installEvt = null; if(typeof App!=='undefined' && App.refreshInstallLink) App.refreshInstallLink(); });
+if('serviceWorker' in navigator && (location.protocol==='https:'||location.hostname==='localhost')){
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;700;900&family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
@@ -614,6 +630,9 @@ html[data-bg="goldlines"] .main::before{background:
     <a class="navlink app-switch" id="transfersAppLink" href="https://transfers-companyapp.netlify.app/" target="_blank" rel="noopener" style="display:none">
       <span class="ic">🚚</span><span>برنامج التحويلات</span><span class="ext">↗</span>
     </a>
+    <a class="navlink app-switch" id="installAppLink" href="#" onclick="App.installApp();return false;" style="display:none">
+      <span class="ic">📲</span><span>تثبيت البرنامج</span>
+    </a>
     <div class="side-foot">
       <div class="who-card">
         <div class="who-avatar" id="whoAvatar"></div>
@@ -763,13 +782,60 @@ function loadData(){
     return migrateData(d);
   }catch(e){ const d = defaultData(); saveData(d); return d; }
 }
+/* =====================================================================
+   STORAGE LAYER
+   • single mode (original): the whole database is one Firestore document
+     appdata/main — capped at 1MB by Firestore.
+   • split mode (after the owner presses "ترقية التخزين"): appdata/main keeps
+     the small stuff (users, stores, settings…) and each big list (returns,
+     orders, stock, items, activity log) is cut into ~600KB pieces saved as
+     appdata/<list>__<n>. Only pieces that actually changed are re-written.
+   • daily server backups: appdata/bk_<date>__<n> + an index doc, last 14 days.
+===================================================================== */
+const SPLIT_KEYS = ['returns','orders','stock','items','activityLog'];
+const CHUNK_BYTES = 450*1024;
+const BACKUP_KEEP_DAYS = 30;        // one snapshot per day for 30 days
+const BACKUP_KEEP_HOURS = 48;       // plus every hourly snapshot from the last 48 hours
+function utf8Len(str){ let n=0; for(let i=0;i<str.length;i++){ const c=str.charCodeAt(i); n += c<0x80?1:(c<0x800?2:(c>=0xD800&&c<=0xDBFF?(i++,4):3)); } return n; }
+function chunkArray(arr){
+  const out=[]; let cur=[], size=2;
+  for(const x of (arr||[])){
+    const s = utf8Len(JSON.stringify(x))+1;
+    if(cur.length && size+s > CHUNK_BYTES){ out.push(cur); cur=[]; size=2; }
+    cur.push(x); size+=s;
+  }
+  if(cur.length || !out.length) out.push(cur);
+  return out;
+}
+function chunkString(str){ const out=[]; let i=0; const step=250000; while(i<str.length){ out.push(str.slice(i,i+step)); i+=step; } return out.length?out:['']; }
+window.__store = { mode:'single', splitSupported:null, lastWritten:{}, lastCount:{}, main:null, chunks:{}, bkIndex:null };
+function saveSplit(d){
+  const S = window.__store, col = window.__appCol;
+  const main = {};
+  Object.keys(d).forEach(k=>{ if(!SPLIT_KEYS.includes(k)) main[k]=d[k]; });
+  const parts = {};
+  const writes = [];
+  SPLIT_KEYS.forEach(key=>{
+    const chunks = chunkArray(d[key]||[]);
+    parts[key] = chunks.length;
+    chunks.forEach((c,i)=>{
+      const id = `${key}__${i}`, json = JSON.stringify(c);
+      if(S.lastWritten[id]!==json){ S.lastWritten[id]=json; writes.push(col.doc(id).set({kind:'chunk', key, idx:i, data:json})); }
+    });
+    const prev = S.lastCount[key]||0;
+    for(let i=chunks.length;i<prev;i++){ const id=`${key}__${i}`; delete S.lastWritten[id]; writes.push(col.doc(id).delete()); }
+    S.lastCount[key] = chunks.length;
+  });
+  main.__storage = {mode:'split', parts, rev: Date.now()};
+  // pieces first, then the main doc that says how many pieces to expect
+  return Promise.all(writes).then(()=> window.__mainDocRef.set(main)).catch(e=>console.error('firestore split save failed', e));
+}
 function saveData(d){
   try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); }catch(e){ console.error('storage failed', e); }
-  // also push to the shared Firestore backend so every device stays in sync,
-  // once the first sync/seed has completed (see firebase setup below)
-  if(window.__fsReady && window.__mainDocRef){
-    window.__mainDocRef.set(d).catch(e=>console.error('firestore save failed', e));
-  }
+  if(!(window.__fsReady && window.__mainDocRef)) return;
+  if(window.__store.mode==='split') saveSplit(d);
+  else window.__mainDocRef.set(d).catch(e=>console.error('firestore save failed', e));
+  if(typeof App!=='undefined' && App.afterSave) App.afterSave();
 }
 
 /* defaults only — the owner can add/remove reasons & resolutions from
@@ -1452,6 +1518,7 @@ const App = {
     const avatarEl = document.getElementById('whoAvatar');
     if(avatarEl) this.renderAvatar(avatarEl, u);
     this.renderSessionInfo();
+    this.refreshInstallLink();
     if(!this._sessionTimer) this._sessionTimer = setInterval(()=>{ if(this.session) this.renderSessionInfo(); }, 60000);
     this.renderNotifBell();
     this.renderBrand();
@@ -4837,6 +4904,8 @@ const App = {
         ${!this.isEmailJSConfigured()? `<div class="help-box" style="margin-top:10px;">لحد ما تظبط الإعدادات دي، تسجيل الدخول وحذف البيانات هيشتغلوا عادي من غير رمز تحقق — الميزة بس معطّلة مؤقتًا.</div>` : ''}
       </div>
 
+      ${this.storageCardHtml()}
+
       <div class="card" style="margin-top:14px;">
         <div class="section-head"><h3>النسخ الاحتياطي واستعادة البيانات</h3></div>
         <div class="small muted" style="margin-bottom:12px;">نزّل نسخة من كل بيانات النظام دوريًا (مرتجعات، مستخدمين، مخزون...)، وارجع لها في أي وقت لو حصل خطأ.</div>
@@ -5019,7 +5088,246 @@ const App = {
   },
 
   /* ---------------- BACKUP / RESTORE ---------------- */
-  downloadBackup(){
+  /* ---------------- STORAGE: status, upgrade, daily backups ---------------- */
+  /* ---------------- INSTALL AS AN APP ---------------- */
+  isInstalledApp(){
+    return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone===true;
+  },
+  isIOS(){ return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1); },
+  refreshInstallLink(){
+    const a = document.getElementById('installAppLink');
+    if(!a) return;
+    a.style.display = (!this.isInstalledApp() && (window.__installEvt || this.isIOS())) ? '' : 'none';
+  },
+  installApp(){
+    const ev = window.__installEvt;
+    if(ev){
+      ev.prompt();
+      (ev.userChoice||Promise.resolve({})).then(r=>{
+        if(r && r.outcome==='accepted'){ window.__installEvt = null; this.notify('تم تثبيت البرنامج ✅ هتلاقي أيقونته على سطح المكتب / الشاشة الرئيسية.'); }
+        this.refreshInstallLink();
+      });
+      return;
+    }
+    if(this.isIOS()){
+      this.notify('على الآيفون: افتح البرنامج من Safari ← دوس زرار المشاركة (المربع اللي فيه سهم لفوق) ← "إضافة إلى الشاشة الرئيسية" ← إضافة.');
+      return;
+    }
+    this.notify('افتح البرنامج من Chrome أو Edge، ودوس على أيقونة التثبيت اللي في آخر شريط العنوان من فوق (شكل شاشة عليها سهم).');
+  },
+  /* rough server usage vs Firebase's free 1 GB: live data + every kept backup, plus ~15% overhead */
+  FREE_QUOTA_BYTES: 1024*1024*1024,
+  serverUsage(){
+    const I = this.storageInfo();
+    const bk = I.backups.reduce((a,b)=>a+(b.bytes||I.bytes),0);
+    const used = Math.round((I.bytes + bk) * 1.15);
+    const pct = used / this.FREE_QUOTA_BYTES * 100;
+    // growth: compare the oldest and newest backups to estimate how fast the data grows per day
+    let perDay = 0, daysLeft = null;
+    const bs = I.backups.filter(b=>b.ts && b.bytes);
+    if(bs.length>=2){
+      const a = bs[0], z = bs[bs.length-1], days = (z.ts-a.ts)/86400000;
+      if(days>=1 && z.bytes>a.bytes) perDay = (z.bytes-a.bytes)/days;
+    }
+    if(perDay>0){
+      const kept = Math.max(1, I.backups.length) + 1;   // each byte of data is stored ~once per kept copy
+      daysLeft = Math.floor((this.FREE_QUOTA_BYTES - used) / (perDay*kept*1.15));
+    }
+    return {used, pct, bk, data:I.bytes, perDay, daysLeft, copies:I.backups.length};
+  },
+  fmtBytes(b){
+    const f=(n,d)=>Number(n).toLocaleString('ar-EG',{maximumFractionDigits:d});
+    if(b>=1073741824) return f(b/1073741824,2)+' جيجا';
+    if(b>=1048576) return f(b/1048576,1)+' ميجا';
+    return fmtNum(Math.max(1,Math.round(b/1024)))+' ك.ب';
+  },
+  usageMeterHtml(){
+    const U = this.serverUsage();
+    const pct = U.pct;
+    const lvl = pct>=85?'bad':(pct>=60?'warn':'good');
+    const pctTxt = pct<0.1 ? 'أقل من ٠٫١٪' : Number(pct).toLocaleString('ar-EG',{maximumFractionDigits: pct<10?1:0})+'٪';
+    const w = Math.max(pct, 0.6);
+    let horizon;
+    if(U.daysLeft==null) horizon = 'لسه بدري نحسب سرعة الزيادة — بعد كام يوم شغل هيظهر هنا المساحة تكفي لإمتى.';
+    else if(U.daysLeft > 3650) horizon = 'بمعدل الشغل الحالي المساحة المجانية تكفي أكتر من ١٠ سنين.';
+    else if(U.daysLeft > 365) horizon = `بمعدل الشغل الحالي المساحة المجانية تكفي حوالي ${fmtNum(Math.floor(U.daysLeft/365))} سنة.`;
+    else horizon = `بمعدل الشغل الحالي المساحة المجانية تكفي حوالي ${fmtNum(U.daysLeft)} يوم — وقتها نحوّل للباقة بالاستخدام.`;
+    return `
+      <div style="margin-bottom:14px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
+          <b>المساحة المستخدمة على السيرفر المجاني</b>
+          <span class="small"><b style="color:var(--${lvl});">${this.fmtBytes(U.used)}</b> <span class="muted">من ١ جيجا (${pctTxt})</span></span>
+        </div>
+        <div style="height:12px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);overflow:hidden;" role="progressbar" aria-valuenow="${pct.toFixed(1)}" aria-valuemin="0" aria-valuemax="100">
+          <div style="height:100%;width:${Math.min(100,w)}%;background:var(--${lvl});border-radius:999px;"></div>
+        </div>
+        <div class="small muted" style="margin-top:6px;">البيانات نفسها ${this.fmtBytes(U.data)} + ${fmtNum(U.copies)} نسخة احتياطية ${this.fmtBytes(U.bk)}. ${horizon} <span style="opacity:.8">(الرقم تقريبي)</span></div>
+      </div>`;
+  },
+  storageInfo(){
+    const S = window.__store || {};
+    const json = JSON.stringify(this.db);
+    const bytes = utf8Len(json);
+    return {mode:S.mode, supported:S.splitSupported, bytes, pct: Math.min(100, Math.round(bytes/1048576*100)), backups:(S.bkIndex&&S.bkIndex.list)||[]};
+  },
+  upgradeStorage(){
+    if(!this.isOwner()) return;
+    const S = window.__store;
+    if(S.mode==='split'){ this.notify('التخزين متقسّم بالفعل.'); return; }
+    if(S.splitSupported!==true){ this.notify('قواعد الحماية على Firebase لسه مش سامحة بأكتر من ملف. ظبطها الأول (التعليمات تحت الزرار) وبعدين جرّب تاني.'); return; }
+    this.confirmAction('هيتم تقسيم البيانات على أكتر من ملف على السيرفر عشان الحجم ميتقفلش. قبلها هتتاخد نسخة احتياطية على السيرفر وهتنزل نسخة على جهازك. اعمل ده في وقت مفيش حد بيسجل فيه، واطلب من باقي المستخدمين يعملوا تحديث للصفحة بعدها. نكمّل؟', ()=>{
+      this.downloadBackup(true);
+      this.serverBackup(true).then(()=>{
+        S.mode = 'split';
+        return saveSplit(this.db);
+      }).then(()=>{
+        this.logActivity('رقّى التخزين على السيرفر لأكتر من ملف');
+        saveData(this.db);
+        this.render();
+        this.notify('تم ✅ البيانات دلوقتي متقسمة على أكتر من ملف، ومفيش حد أقصى للحجم يقلقك. اطلب من كل المستخدمين يعملوا تحديث للصفحة (Ctrl+Shift+R).');
+      }).catch(e=>{ console.error(e); S.mode='single'; this.notify('حصل خطأ أثناء الترقية، ومفيش حاجة اتغيرت. جرّب تاني.'); });
+    }, 'ترقية التخزين');
+  },
+  /* a full snapshot on the server at most once an hour (whenever data changes);
+     keeps every snapshot from the last 48 hours + the last one of each day for 30 days */
+  serverBackup(force){
+    const S = window.__store, col = window.__appCol;
+    if(!col || S.splitSupported!==true || !S.bkIndex) return Promise.resolve(false);
+    const now = new Date();
+    const hh = String(now.getHours()).padStart(2,'0');
+    const id = `${todayStr()}_${hh}`;
+    const list = (S.bkIndex.list||[]).map(b=>b.id? b : Object.assign({}, b, {id:b.date}));
+    if(!force && list.some(b=>b.id===id)) return Promise.resolve(false);
+    if(this._bkBusy) return Promise.resolve(false);
+    this._bkBusy = true;
+    const json = JSON.stringify(this.db);
+    const pieces = chunkString(json);
+    const u = this.session ? this.currentUser() : null;
+    const writes = pieces.map((p,i)=>col.doc(`bk_${id}__${i}`).set({kind:'backup', id, idx:i, data:p}));
+    return Promise.all(writes).then(()=>{
+      const old = list.find(b=>b.id===id);
+      const extra = old && old.parts>pieces.length ? Array.from({length:old.parts-pieces.length},(_,k)=>col.doc(`bk_${id}__${pieces.length+k}`).delete()) : [];
+      let next = list.filter(b=>b.id!==id).concat([{id, date:todayStr(), hour:hh, parts:pieces.length, bytes:utf8Len(json), ts:Date.now(), by:(u&&(u.name||u.username))||'تلقائي'}]).sort((a,b)=>a.ts-b.ts);
+      // retention
+      const cutoffH = Date.now() - BACKUP_KEEP_HOURS*3600000;
+      const lastOfDay = {}; next.forEach(b=>{ lastOfDay[b.date] = b.id; });
+      const days = Object.keys(lastOfDay).sort().slice(-BACKUP_KEEP_DAYS);
+      const keep = b => b.ts >= cutoffH || (days.includes(b.date) && lastOfDay[b.date]===b.id);
+      const drop = next.filter(b=>!keep(b));
+      next = next.filter(keep);
+      const dels = drop.flatMap(b=>Array.from({length:b.parts},(_,k)=>col.doc(`bk_${b.id}__${k}`).delete()));
+      S.bkIndex = {kind:'bkindex', list:next};
+      return Promise.all(extra.concat(dels, [col.doc('__backups').set(S.bkIndex)])).then(()=>true);
+    }).catch(e=>{ console.error('server backup failed', e); return false; })
+      .finally(()=>{ this._bkBusy = false; });
+  },
+  /* switch to the split layout on its own (no button) — safe to call repeatedly */
+  autoUpgradeStorage(){
+    const S = window.__store;
+    if(S.mode!=='single' || S.splitSupported!==true || !window.__fsReady || this._upgrading) return;
+    this._upgrading = true;
+    this.serverBackup(true).then(()=>{
+      S.mode = 'split';
+      return saveSplit(this.db);
+    }).then(()=>{ console.info('storage upgraded to split layout'); })
+      .catch(e=>{ console.error('auto upgrade failed', e); S.mode='single'; })
+      .finally(()=>{ this._upgrading = false; });
+  },
+  restoreServerBackup(id){
+    if(!this.isOwner()) return;
+    const S = window.__store, col = window.__appCol;
+    const b = ((S.bkIndex&&S.bkIndex.list)||[]).find(x=>(x.id||x.date)===id);
+    if(!b) return;
+    const date = b.hour!=null ? `${b.date} الساعة ${b.hour}:00` : b.date;
+    this.confirmAction(`هيتم استبدال كل البيانات الحالية بنسخة يوم ${date}. قبلها هتنزل نسخة من البيانات الحالية على جهازك. متأكد؟`, ()=>{
+      this.downloadBackup(true);
+      Promise.all(Array.from({length:b.parts},(_,k)=>col.doc(`bk_${b.id||b.date}__${k}`).get())).then(snaps=>{
+        const json = snaps.map(s=>s.exists? s.data().data : '').join('');
+        const parsed = JSON.parse(json);
+        if(!parsed || !Array.isArray(parsed.users) || !Array.isArray(parsed.returns)) throw new Error('bad backup');
+        const prevUsername = (this.currentUser()||{}).username;
+        this.db = migrateData(parsed);
+        const matched = this.db.users.find(u=>u.username===prevUsername);
+        this.session = { userId: (matched||this.db.users[0]).id };
+        localStorage.setItem(SESSION_KEY, JSON.stringify(this.session));
+        this.applyTheme();
+        this.logActivity(`استرجع نسخة السيرفر بتاعة يوم ${date}`);
+        this.refresh(); this.buildNav();
+        this.notify(`تم استرجاع نسخة يوم ${date} بنجاح ✅`);
+      }).catch(e=>{ console.error(e); this.notify('تعذّر قراءة النسخة دي من السيرفر.'); });
+    }, 'استرجاع النسخة');
+  },
+  /* after every save: keep the hourly snapshot going */
+  afterSave(){
+    clearTimeout(this._bkTimer);
+    this._bkTimer = setTimeout(()=>this.serverBackup(false), 4000);
+  },
+  /* runs once the data is loaded: today's server snapshot + the owner's daily file on this device */
+  dailyBackups(){
+    if(!this.session) return;
+    this.autoUpgradeStorage();
+    this.serverBackup(false).then(done=>{ if(done && document.getElementById('app').style.display!=='none' && this.view==='settings') this.render(); });
+    if(this.isOwner()){
+      let on = true, last = '';
+      try{ on = localStorage.getItem('rm_autoDl_on')!=='0'; last = localStorage.getItem('rm_autoDl_last')||''; }catch(e){}
+      if(on && last!==todayStr()){
+        try{ localStorage.setItem('rm_autoDl_last', todayStr()); }catch(e){}
+        setTimeout(()=>this.downloadBackup(true), 1500);
+      }
+    }
+  },
+  toggleAutoDownload(on){
+    try{ localStorage.setItem('rm_autoDl_on', on?'1':'0'); }catch(e){}
+    this.render();
+  },
+  storageCardHtml(){
+    const I = this.storageInfo();
+    let autoOn = true; try{ autoOn = localStorage.getItem('rm_autoDl_on')!=='0'; }catch(e){}
+    const lvl = I.pct>=85?'bad':(I.pct>=60?'warn':'good');
+    const rules = `rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /appdata/{docId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}`;
+    const lbl = b => b.hour!=null ? `${b.date} — ${b.hour}:00` : b.date;
+    const last = I.backups[I.backups.length-1];
+    return `
+      <div class="card" style="margin-top:14px;">
+        <div class="section-head"><h3>🛡️ حماية البيانات والتخزين</h3></div>
+        <div class="small muted" style="margin-bottom:12px;">كل عملية بتتسجل بتتحفظ على السيرفر في نفس اللحظة. وفوق كده في نسخ احتياطية تلقائية — مش محتاج تعمل أي حاجة.</div>
+        ${this.usageMeterHtml()}
+        <div class="grid grid-3" style="margin-bottom:12px;">
+          <div class="stat ${I.mode==='split'?'accent':lvl}"><div class="l">التخزين على السيرفر</div><div class="n" style="font-size:18px;">${I.mode==='split'?'مفتوح بدون حد ✅':'ملف واحد'}</div><div class="small muted">${I.mode==='split'?'البيانات بتتقسم لوحدها مهما كبرت':`مستخدم ${fmtNum(I.pct)}% من 1 ميجا`}</div></div>
+          <div class="stat"><div class="l">حجم البيانات</div><div class="n" style="font-size:18px;">${fmtNum(Math.round(I.bytes/1024))} ك.ب</div><div class="small muted">${fmtNum(this.db.returns.length)} مرتجع • ${fmtNum(this.db.items.length)} صنف</div></div>
+          <div class="stat ${I.backups.length?'':'warn'}"><div class="l">نسخ السيرفر التلقائية</div><div class="n" style="font-size:18px;">${fmtNum(I.backups.length)} نسخة</div><div class="small muted">${last?'آخر نسخة: '+esc(lbl(last)):'لسه مفيش'}</div></div>
+        </div>
+        ${I.supported===false? `<div class="help-box" style="border-color:var(--warn);margin-bottom:12px;">
+          ⚠️ <b>قواعد الحماية على Firebase سامحة بملف واحد بس</b> — عشان كده النسخ التلقائية على السيرفر والتخزين المفتوح مش شغالين لسه (الحفظ العادي شغال).
+          افتح <a href="https://console.firebase.google.com/project/returns---manager/firestore/rules" target="_blank" rel="noopener">قواعد Firestore</a>، وامسح اللي مكتوب، والصق ده، ودوس <b>Publish</b> — والباقي هيتظبط لوحده أول ما تفتح البرنامج:
+          <pre dir="ltr" style="text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:8px;font-size:12px;white-space:pre-wrap;">${esc(rules)}</pre>
+        </div>` : ''}
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+              <div><b>نسخ تلقائية على السيرفر</b><div class="small muted">نسخة كل ساعة فيها شغل — بيتحفظ كل نسخ آخر ${BACKUP_KEEP_HOURS} ساعة، ونسخة من كل يوم لمدة ${BACKUP_KEEP_DAYS} يوم. لو حصل مسح أو غلط، اختار الوقت ورجّعه.</div></div>
+              <button class="btn btn-sm" ${I.supported===true?'':'disabled'} onclick="App.serverBackup(true).then(ok=>{App.render();App.notify(ok?'تم أخد نسخة على السيرفر ✅':'تعذّر أخد النسخة');})">📸 خد نسخة دلوقتي</button>
+            </div>
+            ${I.backups.length? `<div class="tbl-wrap" style="margin-top:10px;max-height:280px;overflow:auto;"><table class="tbl"><thead><tr><th>الوقت</th><th>الحجم</th><th>آخر تعديل بواسطة</th><th></th></tr></thead><tbody>
+              ${I.backups.slice().reverse().map(b=>`<tr><td>${esc(lbl(b))}</td><td>${fmtNum(Math.round(b.bytes/1024))} ك.ب</td><td>${esc(b.by||'تلقائي')}</td><td><button class="btn btn-sm" onclick="App.restoreServerBackup('${esc(b.id||b.date)}')">↩ استرجاع</button></td></tr>`).join('')}
+            </tbody></table></div>` : ''}
+          </div>
+          <hr class="sep" style="margin:0;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+            <div><b>نسخة يومية على جهازك</b><div class="small muted">أول ما تفتح البرنامج كل يوم بينزل ملف نسخة كاملة في مجلد التنزيلات (على الجهاز ده).</div></div>
+            <label style="display:inline-flex;gap:6px;align-items:center;cursor:pointer;"><input type="checkbox" style="width:auto;" ${autoOn?'checked':''} onchange="App.toggleAutoDownload(this.checked)"> مفعّلة</label>
+          </div>
+        </div>
+      </div>`;
+  },
+  downloadBackup(silent){
     if(!this.isOwner()) return;
     const stamp = todayStr();
     const blob = new Blob([JSON.stringify(this.db, null, 2)], {type:'application/json'});
@@ -6085,43 +6393,89 @@ try{
   firebase.initializeApp(firebaseConfig);
   const auth = firebase.auth();
   const fsdb = firebase.firestore();
-  const mainDocRef = fsdb.collection('appdata').doc('main');
+  const appCol = fsdb.collection('appdata');
+  const mainDocRef = appCol.doc('main');
   window.__mainDocRef = mainDocRef;
+  window.__appCol = appCol;
+  const S = window.__store;
 
-  let firstSnapshot = true;
-  // tracks the newest activity-log timestamp we've already seen, so we only
-  // fire a desktop notification for entries that arrive AFTER this device
-  // started watching (never for the log's existing history on first load)
+  let firstLoad = true;
   let lastKnownActivityTs = 0;
+  let chunksReady = false;
+  // build App.db from the main doc (+ its pieces in split mode); returns null while pieces are still arriving
+  const assemble = ()=>{
+    const m = S.main;
+    if(!m) return null;
+    if(!(m.__storage && m.__storage.mode==='split')){ S.mode='single'; return m; }
+    if(!chunksReady) return null;
+    S.mode = 'split';
+    const out = {};
+    Object.keys(m).forEach(k=>{ if(k!=='__storage' && !SPLIT_KEYS.includes(k)) out[k]=m[k]; });
+    for(const key of SPLIT_KEYS){
+      const n = (m.__storage.parts||{})[key]||0;
+      let arr = [];
+      for(let i=0;i<n;i++){
+        const id = `${key}__${i}`, raw = S.chunks[id];
+        if(raw==null) return null;             // a piece hasn't arrived yet — wait
+        arr = arr.concat(JSON.parse(raw));
+        S.lastWritten[id] = raw;
+      }
+      out[key] = arr; S.lastCount[key] = n;
+    }
+    return out;
+  };
+  const apply = ()=>{
+    const data = assemble();
+    if(!data) return;
+    if(firstLoad){
+      firstLoad = false;
+      App.db = migrateData(data);
+      const log0 = App.db.activityLog||[];
+      lastKnownActivityTs = log0.length? Math.max(...log0.map(e=>e.ts)) : 0;
+      window.__fsReady = true;
+      App.applyTheme();
+      setTimeout(()=>App.dailyBackups(), 2500);
+    } else {
+      App.db = migrateData(data);
+      App.checkNewActivityForNotifications(lastKnownActivityTs);
+      const log1 = App.db.activityLog||[];
+      if(log1.length) lastKnownActivityTs = Math.max(lastKnownActivityTs, ...log1.map(e=>e.ts));
+      App.applyTheme();
+    }
+    if(document.getElementById('app').style.display !== 'none'){ App.buildNav(); App.render(); }
+  };
+
   auth.onAuthStateChanged(user=>{
     if(!user){ auth.signInAnonymously().catch(e=>console.error('firebase anonymous sign-in failed', e)); return; }
 
+    // can we use more than one document? (depends on the project's security rules)
+    const probe = appCol.doc('__probe');
+    probe.set({kind:'probe', ts:Date.now()}).then(()=>probe.delete()).then(()=>{
+      S.splitSupported = true;
+      appCol.doc('__backups').get().then(s=>{ S.bkIndex = s.exists? s.data() : {kind:'bkindex', list:[]}; if(window.__fsReady){ App.autoUpgradeStorage(); App.serverBackup(false); } }).catch(()=>{});
+    }).catch(()=>{ S.splitSupported = false; })
+      .finally(()=>{ if(App.view==='settings' && document.getElementById('app').style.display!=='none') App.render(); });
+
+    appCol.where('kind','==','chunk').onSnapshot(qs=>{
+      qs.docChanges().forEach(ch=>{
+        if(ch.type==='removed') delete S.chunks[ch.doc.id];
+        else S.chunks[ch.doc.id] = ch.doc.data().data;
+      });
+      chunksReady = true;
+      apply();
+    }, err=>{ chunksReady = true; console.warn('chunk listener unavailable (single-document rules)', err && err.code); apply(); });
+
     mainDocRef.onSnapshot(snap=>{
-      if(firstSnapshot){
-        firstSnapshot = false;
-        if(!snap.exists){
+      if(!snap.exists){
+        if(firstLoad){
           // nothing in Firestore yet: seed it with whatever we have locally
+          window.__fsReady = true; firstLoad = false;
           mainDocRef.set(App.db).catch(e=>console.error('firestore seed failed', e));
-        } else {
-          App.db = migrateData(snap.data());
         }
-        const log0 = App.db.activityLog||[];
-        lastKnownActivityTs = log0.length? Math.max(...log0.map(e=>e.ts)) : 0;
-        window.__fsReady = true;
-        App.applyTheme();
-      } else if(snap.exists){
-        App.db = migrateData(snap.data());
-        App.checkNewActivityForNotifications(lastKnownActivityTs);
-        const log1 = App.db.activityLog||[];
-        if(log1.length) lastKnownActivityTs = Math.max(lastKnownActivityTs, ...log1.map(e=>e.ts));
-        App.applyTheme();
+        return;
       }
-      // keep every connected device's screen live-synced, without touching
-      // an open modal (it isn't part of App.render()'s target)
-      if(document.getElementById('app').style.display !== 'none'){
-        App.buildNav();
-        App.render();
-      }
+      S.main = snap.data();
+      apply();
     }, err=>{ console.error('firestore snapshot listener failed', err); });
   });
 }catch(e){ console.error('firebase init failed', e); }
