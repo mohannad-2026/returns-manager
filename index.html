@@ -876,6 +876,7 @@ const MIRROR = {
 try{ const q = JSON.parse(localStorage.getItem(MIRROR_Q_KEY)||'[]'); if(Array.isArray(q)) MIRROR.q = q; }catch(e){}
 try{ MIRROR.verify = JSON.parse(localStorage.getItem(MIRROR_V_KEY)||'null'); }catch(e){}
 
+const MIRROR_SCRIPT_VERSION = 3;      // the script version this page expects (Google Sheet view + status)
 const MIRROR_URL_RE = /^https:\/\/script\.google\.com\/.+\/exec$/;
 function mirrorUrl(d){ const u = d && d.settings && d.settings.googleScriptUrl; return MIRROR_URL_RE.test(u||'') ? u : ''; }
 function mirrorOn(d){ return !!mirrorUrl(d); }
@@ -5532,7 +5533,7 @@ const App = {
     gasCall('ping', {}, 45000, url).then(()=>{
       this.db.settings.googleScriptUrl = url;
       this.logActivity('ربط النسخة اللحظية على Google Drive');
-      MIRROR.base = null; MIRROR.cardLoaded = false; MIRROR.fails = 0; MIRROR.lastErr = '';
+      MIRROR.base = null; MIRROR.cardLoaded = false; MIRROR.fails = 0; MIRROR.lastErr = ''; MIRROR.info = null; MIRROR.backups = []; MIRROR.verify = null; MIRROR.changeOpen = false;
       this.refresh();
       this.notify('تم الربط ✅ جاري نسخ كل البيانات على Google Drive لأول مرة…');
       mirrorVerify(true).then(v=>{
@@ -5582,6 +5583,37 @@ const App = {
       }).catch(e=>{ console.error(e); this.notify('تعذّر استرجاع النسخة دي من Google Drive.'); });
     }, 'استرجاع النسخة');
   },
+  mirrorSheetNow(){
+    this.notify('جاري تحديث جدول Google Sheets…');
+    gasCall('sheet', {}, 180000).then(r=>{
+      this.notify(r.sheetError ? 'السكريبت ما قدرش يعمل الجدول — السبب مكتوب في الكارت.' : 'جدول Google Sheets اتحدّث ✅');
+    }).catch(e=>{ this.notify('تعذّر تحديث الجدول: '+String((e && e.message) || e)); })
+      .then(()=>this.mirrorLoadCard());
+  },
+  /* the "opens like Excel" Google Sheet: link + state, or what is missing */
+  mirrorSheetHtml(G){
+    if(!G || !G.ok) return '';
+    const v = G.v||1;
+    if(v < MIRROR_SCRIPT_VERSION){
+      return `<div class="help-box" style="border-color:var(--warn);margin-bottom:12px;">
+        📊 <b>جدول Google Sheets (زي الإكسيل) لسه مش شغال</b> — السكريبت المنشور دلوقتي نسخته <b>${fmtNum(v)}</b> والمطلوب <b>${fmtNum(MIRROR_SCRIPT_VERSION)}</b>. يعني الكود الجديد لسه ما اتنشرش. في صفحة السكريبت:
+        <ol style="margin:8px 18px 0;line-height:1.9;">
+          <li>الصق كود ملف <span dir="ltr">google-script.txt</span> الجديد مكان القديم واحفظ (<span dir="ltr">Ctrl+S</span>).</li>
+          <li>اختار <b dir="ltr">setup</b> من القايمة اللي جنب Debug ودوس <b dir="ltr">▶ Run</b> ووافق على الصلاحيات.</li>
+          <li><span dir="ltr">Deploy → Manage deployments → ✏ → Version: <b>New version</b> → Deploy</span>.</li>
+          <li>ارجع هنا واعمل تحديث للصفحة.</li>
+        </ol></div>`;
+    }
+    return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface-2);">
+        <div><b>📊 جدول Google Sheets (بيتفتح زي الإكسيل)</b>
+          <div class="small muted">كل القوائم بأسماء مقروءة وبيتحدث مع كل عملية. للعرض والتحميل كإكسيل — التعديل فيه مش بيرجع للبرنامج.</div>
+          ${G.sheetErr ? `<div class="small" style="color:var(--bad);margin-top:4px;">⚠ السكريبت ما قدرش يكتب الجدول: <span dir="ltr">${esc(G.sheetErr)}</span></div>` : ''}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          ${G.sheetUrl ? `<a class="btn btn-sm btn-accent" href="${esc(G.sheetUrl)}" target="_blank" rel="noopener" style="text-decoration:none;">افتح الجدول ↗</a>` : ''}
+          <button class="btn btn-sm" onclick="App.mirrorSheetNow()">${G.sheetUrl ? 'حدّث الجدول الآن' : 'اعمل الجدول الآن'}</button>
+        </div>
+      </div>`;
+  },
   mirrorCardHtml(){
     if(!this.isOwner()) return '';
     const on = mirrorOn(this.db);
@@ -5623,18 +5655,28 @@ const App = {
         <div class="section-head"><h3>☁️ نسخة لحظية على Google Drive</h3><span class="tag ${state==='good'?'good':'warn'}">${stateTxt}</span></div>
         <div class="small muted" style="margin-bottom:12px;">كل عملية بتتسجل بتتبعت في نفس اللحظة لحساب جوجل بتاعك وتتحفظ في مجلد «بيانات نظام المرتجعات» على Google Drive.
           ${G.folderUrl? ` <a href="${esc(G.folderUrl)}" target="_blank" rel="noopener" style="color:var(--accent);font-weight:700;">افتح المجلد ↗</a>` : ''}</div>
-        ${MIRROR.fails>0 ? `<div class="help-box" style="border-color:var(--warn);margin-bottom:12px;">⚠️ آخر محاولة إرسال ما وصلتش (${esc(MIRROR.lastErr||'')}). التعديلات محفوظة على السيرفر الأساسي عادي، ومستنية على الجهاز لحد ما تتبعت لـ Google Drive — البرنامج بيحاول لوحده.</div>` : ''}
+        ${MIRROR.fails>0 ? `<div class="help-box" style="border-color:var(--warn);margin-bottom:12px;">⚠️ آخر محاولة إرسال ما وصلتش (${esc(MIRROR.lastErr||'')}). التعديلات محفوظة على السيرفر الأساسي عادي، ومستنية على الجهاز لحد ما تتبعت لـ Google Drive — البرنامج بيحاول لوحده.
+          <br><b>لو لسه لاصق كود جديد في السكريبت:</b> افتح السكريبت ← اختار <b dir="ltr">setup</b> من القايمة اللي جنب Debug ← دوس <b dir="ltr">▶ Run</b> ووافق على الصلاحيات، وبعدين <span dir="ltr">Deploy → Manage deployments → ✏ → New version → Deploy</span>.</div>` : ''}
         ${meter}
         <div class="grid grid-3" style="margin-bottom:12px;">
           <div class="stat ${state==='good'?'accent':state}"><div class="l">آخر إرسال</div><div class="n" style="font-size:18px;">${ago(last)}</div><div class="small muted">${wait>0 ? `${fmtNum(wait)} تعديل مستني الإرسال` : 'مفيش حاجة مستنية'}</div></div>
           <div class="stat ${V && V.result!=='ok' && V.result!=='fixed' && V.result!=='full' ? 'warn':''}"><div class="l">آخر مطابقة كاملة</div><div class="n" style="font-size:18px;">${MIRROR.verifying ? 'جارية…' : ago(Math.max((V&&V.at)||0, G.lastVerify||0))}</div><div class="small muted">${V ? (V.result==='ok' ? 'النسختين متطابقتين' : V.result==='fixed' ? `اتصلّح فرق في ${fmtNum(V.n)} قائمة` : 'اتنسخ كل شيء') : 'بتتعمل لوحدها كل كام ساعة'}</div></div>
-          <div class="stat ${MIRROR.backups.length?'':'warn'}"><div class="l">نسخ الساعة على Drive</div><div class="n" style="font-size:18px;">${fmtNum(MIRROR.backups.length)} نسخة</div><div class="small muted">${MIRROR.backups.length ? 'آخر نسخة: '+esc(lbl(MIRROR.backups[MIRROR.backups.length-1])) : 'أول نسخة بتتعمل مع أول تعديل'}</div></div>
+          <div class="stat ${MIRROR.backups.length?'':'warn'}"><div class="l">نسخ الساعة على Drive${G.v? ` <span class="muted" style="font-weight:400;">• سكريبت v${G.v}</span>` : ''}</div><div class="n" style="font-size:18px;">${fmtNum(MIRROR.backups.length)} نسخة</div><div class="small muted">${MIRROR.backups.length ? 'آخر نسخة: '+esc(lbl(MIRROR.backups[MIRROR.backups.length-1])) : 'أول نسخة بتتعمل مع أول تعديل'}</div></div>
         </div>
+        ${this.mirrorSheetHtml(G)}
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
           <button class="btn btn-sm" ${MIRROR.verifying?'disabled':''} onclick="App.mirrorVerifyNow()">🔄 مطابقة الآن</button>
           <button class="btn btn-sm" onclick="gasCall('backup',{force:true,stamp:mirrorStamp(),by:mirrorBy()},120000).then(r=>{MIRROR.backups=r.backups||[];App.render();App.notify('تم أخد نسخة على Google Drive ✅');}).catch(()=>App.notify('تعذّر أخد النسخة'))">📸 خد نسخة دلوقتي</button>
           <button class="btn btn-sm" onclick="App.unlinkMirror()">إيقاف النسخة اللحظية</button>
         </div>
+        <details style="margin-bottom:12px;" ${MIRROR.changeOpen?'open':''} ontoggle="MIRROR.changeOpen=this.open">
+          <summary class="small" style="cursor:pointer;color:var(--accent);font-weight:700;">تغيير لينك السكريبت</summary>
+          <div class="small muted" style="margin:8px 0;">لو عملت سكريبت جديد: الصق لينكه هنا ودوس «ربط» — البرنامج هينسخ كل البيانات عليه من الأول.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <input type="text" id="mirrorUrlInput" dir="ltr" placeholder="https://script.google.com/macros/s/…/exec" style="text-align:left;flex:1;min-width:240px;">
+            <button class="btn btn-accent btn-sm" onclick="App.saveMirrorUrl()">🔗 ربط</button>
+          </div>
+        </details>
         ${MIRROR.backups.length? `<div class="small muted" style="margin-bottom:6px;">فوق النسخة اللحظية، Drive بيحتفظ بنسخة كاملة من كل ساعة فيها شغل (آخر ${BACKUP_KEEP_HOURS} ساعة + نسخة يومية لمدة ${BACKUP_KEEP_DAYS} يوم) في مجلد «نسخ احتياطية»:</div>
           <div class="tbl-wrap" style="max-height:240px;overflow:auto;"><table class="tbl"><thead><tr><th>الوقت</th><th>الحجم</th><th>آخر تعديل بواسطة</th><th></th></tr></thead><tbody>
           ${MIRROR.backups.slice().reverse().map(b=>`<tr><td>${esc(lbl(b))}</td><td>${this.fmtBytes(b.bytes)}</td><td>${esc(b.by||'تلقائي')}</td><td><button class="btn btn-sm" onclick="App.mirrorRestore('${esc(b.id)}')">↩ استرجاع</button></td></tr>`).join('')}
