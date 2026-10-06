@@ -350,7 +350,22 @@ table.tbl tbody tr:last-child td{border-bottom:none;}
 .modal-actions{display:flex;justify-content:flex-start;gap:8px;margin-top:16px;}
 .ret-no{display:inline-block;font-weight:800;color:var(--accent);background:var(--accent-soft);border:1px solid transparent;border-radius:8px;padding:3px 10px;cursor:pointer;letter-spacing:.5px;direction:ltr;text-decoration:none;}
 .ret-no:hover{border-color:var(--accent);}
-.ret-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px;}
+.ret-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;}
+.ret-from{color:var(--warn);font-weight:700;}
+.ret-to{color:var(--good);font-weight:700;}
+.ret-arr{color:var(--accent);font-weight:900;}
+.ret-arr.big{font-size:26px;}
+.ret-route{display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:var(--accent-soft);border:1px solid var(--accent);border-radius:12px;padding:14px 18px;margin-bottom:12px;}
+.ret-route b{font-size:18px;}
+.rf-row{display:grid;gap:10px 12px;align-items:end;margin-bottom:10px;}
+.rf-row .field{margin:0;min-width:0;}
+.rf-h{grid-template-columns:repeat(4,1fr);}
+.rf-i1{grid-template-columns:1.2fr 2fr 1fr .6fr .7fr;}
+.rf-i2{grid-template-columns:2fr 1.2fr 1.2fr 1.2fr auto;}
+@media(max-width:900px){.rf-h,.rf-i1,.rf-i2{grid-template-columns:1fr 1fr;}}
+.rf-sec{font-size:13px;font-weight:800;color:var(--accent);margin:14px 0 8px;display:flex;align-items:center;gap:8px;}
+.rf-sec:after{content:'';flex:1;height:1px;background:var(--line);}
+.rf-auto{border:1px dashed var(--good);color:var(--good);background:var(--good-soft);border-radius:10px;padding:9px 11px;font-size:13px;font-weight:700;}
 .ret-cell{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;}
 .ret-val{margin-top:3px;font-size:14.5px;word-break:break-word;}
 
@@ -747,33 +762,56 @@ function migratePerms(p){
   return p;
 }
 
-/* every return gets its own number (رقم المرتجع): 1, 2, 3… in the order they were recorded.
-   • new records get the next number when they are saved
+/* A "return" (مرتجع) is one document: it goes from one store to one warehouse and holds one or more item lines.
+   Every line carries the id of its return (gid) and the return's number (no): 1, 2, 3… in the order they were recorded.
+   • lines saved from the new-return screen get their gid there; older / imported lines are grouped here:
+     same transfer number → one return; without a transfer number → same store, same warehouse, same day → one return
    • numbers are never reused (settings.lastReturnNo remembers the highest ever given)
-   • if two devices hand out the same number at the same moment, the later record is renumbered —
-     every device reaches the same result on its own, because the rule only depends on the data */
+   • if two devices hand out the same number at the same moment, the later return is renumbered — every device
+     reaches the same result on its own, because the rule only depends on the data */
+function retGroupKey(r){
+  const t = String(r.transferNo||'').trim().toLowerCase();
+  return (t ? 'T|'+t : 'D|'+(r.date||'')) + '|' + (r.storeId||'') + '|' + (r.warehouseId||'');
+}
+function retLineCmp(a,b){
+  return ((a.date||'')+(a.time||'')).localeCompare((b.date||'')+(b.time||'')) || String(a.id).localeCompare(String(b.id));
+}
 function ensureReturnNos(d){
   const rs = d && d.returns;
   if(!Array.isArray(rs) || !rs.length) return false;
   if(!d.settings) d.settings = {};
   const ok = n => Number.isInteger(n) && n>0;
-  let max = Number(d.settings.lastReturnNo)||0, bad = false;
-  const seen = new Set();
+  let changed = false;
+  if(rs.some(r=>!r.gid)){
+    if(!rs.some(r=>r.gid)){ rs.forEach(r=>{ delete r.no; }); d.settings.lastReturnNo = 0; }   // first time: number the returns (not the lines) from 1
+    const byKey = new Map();
+    rs.forEach(r=>{ if(r.gid){ const k = retGroupKey(r); if(!byKey.has(k)) byKey.set(k, r.gid); } });
+    rs.filter(r=>!r.gid).sort(retLineCmp).forEach(r=>{
+      const k = retGroupKey(r);
+      let g = byKey.get(k);
+      if(!g){ g = 'g_'+r.id; byKey.set(k, g); }
+      r.gid = g;
+    });
+    changed = true;
+  }
+  const groups = new Map();
   for(const r of rs){
-    if(!ok(r.no) || seen.has(r.no)) bad = true;
-    else { seen.add(r.no); if(r.no>max) max = r.no; }
+    let g = groups.get(r.gid);
+    if(!g){ g = {gid:r.gid, lines:[], first:r, no:0}; groups.set(r.gid, g); }
+    g.lines.push(r);
+    if(retLineCmp(r, g.first) < 0) g.first = r;
+    if(ok(r.no) && (!g.no || r.no < g.no)) g.no = r.no;
   }
-  if(!bad){
-    if(max !== (Number(d.settings.lastReturnNo)||0)){ d.settings.lastReturnNo = max; return true; }
-    return false;
-  }
-  const keep = new Map();                                   // number → the record that keeps it (earliest id)
-  rs.forEach(r=>{ if(ok(r.no)){ const k = keep.get(r.no); if(!k || String(r.id) < String(k.id)) keep.set(r.no, r); } });
-  const need = rs.filter(r=> !ok(r.no) || keep.get(r.no)!==r);
-  need.sort((a,b)=> ((a.date||'')+(a.time||'')).localeCompare((b.date||'')+(b.time||'')) || String(a.id).localeCompare(String(b.id)));
-  need.forEach(r=>{ r.no = ++max; });
-  d.settings.lastReturnNo = max;
-  return true;
+  let max = Number(d.settings.lastReturnNo)||0;
+  const owner = new Map(), need = [];
+  Array.from(groups.values()).sort((a,b)=>String(a.gid).localeCompare(String(b.gid))).forEach(g=>{
+    if(g.no && !owner.has(g.no)){ owner.set(g.no, g); if(g.no>max) max = g.no; }
+    else need.push(g);
+  });
+  need.sort((a,b)=>retLineCmp(a.first, b.first)).forEach(g=>{ g.no = ++max; });
+  groups.forEach(g=>g.lines.forEach(l=>{ if(l.no !== g.no){ l.no = g.no; changed = true; } }));
+  if(max !== (Number(d.settings.lastReturnNo)||0)){ d.settings.lastReturnNo = max; changed = true; }
+  return changed;
 }
 function fmtRetNo(r){ return (r && r.no) ? String(r.no).padStart(5,'0') : '—'; }
 /* does this return match a typed number? (return number with or without leading zeros / #, or the transfer number) */
@@ -2142,7 +2180,7 @@ const App = {
   /* ---------------- MODAL HELPERS ---------------- */
   openModal(html, wide){
     const mb = document.getElementById('modalBox');
-    mb.style.maxWidth = wide ? '900px' : '';
+    mb.style.maxWidth = wide===true ? '900px' : (wide ? wide+'px' : '');
     mb.innerHTML = html;
     document.getElementById('modalBackdrop').classList.add('open');
   },
@@ -2436,36 +2474,86 @@ const App = {
   /* =====================================================================
      RETURNS
   ===================================================================== */
-  returnsFilter: {store:'', item:'', from:'', to:'', reason:'', q:''},
+  returnsFilter: {store:'', wh:'', item:'', from:'', to:'', reason:'', q:''},
+  returnsOpen: null,          // the return currently opened on the returns page (its gid)
 
-  renderReturns(){
+  /* group item lines into returns (documents). Newest first. */
+  retGroupsOf(lines){
+    const m = new Map();
+    for(const r of lines){
+      const k = r.gid || r.id;
+      let g = m.get(k);
+      if(!g){ g = {gid:k, no:r.no, lines:[]}; m.set(k, g); }
+      g.lines.push(r);
+    }
+    const out = Array.from(m.values());
+    out.forEach(g=>{
+      g.lines.sort((a,b)=>retLineCmp(b,a));
+      g.last = g.lines[0]; g.first = g.lines[g.lines.length-1];
+      g.storeId = g.first.storeId; g.warehouseId = g.first.warehouseId;
+      g.whs = Array.from(new Set(g.lines.map(l=>l.warehouseId||'')));
+      g.transferNo = (g.lines.find(l=>l.transferNo)||{}).transferNo || '';
+      g.date = g.last.date; g.time = g.last.time;
+      g.count = g.lines.length;
+      g.qty = g.lines.reduce((a,l)=>a+Number(l.qty||0), 0);
+      g.by = (g.lines.find(l=>l.createdBy)||{}).createdBy || '';
+      g.note = (g.lines.find(l=>l.note)||{}).note || '';
+    });
+    out.sort((a,b)=>retLineCmp(b.last, a.last) || (b.no||0)-(a.no||0));
+    return out;
+  },
+  retGroup(gid){
+    const lines = this.returnsInScope().filter(r=>(r.gid||r.id)===gid);
+    return lines.length ? this.retGroupsOf(lines)[0] : null;
+  },
+  retToName(g){ return g.whs.length>1 ? g.whs.map(w=>this.whName(w)).join(' + ') : this.whName(g.warehouseId); },
+  retResSummary(g){
+    const c = new Map();
+    g.lines.forEach(l=>{ const k = l.resolution||'معلّق'; c.set(k, (c.get(k)||0)+1); });
+    return Array.from(c.entries()).sort((a,b)=>b[1]-a[1]).map(([k,n])=> g.count>1 ? `${fmtNum(n)} ${k}` : k).join(' • ');
+  },
+  retCountTxt(n){ return n===1 ? 'صنف واحد' : (n===2 ? 'صنفين' : `${fmtNum(n)} ${n<=10?'أصناف':'صنف'}`); },
+  /* the lines that pass a filter → the returns they belong to (each shown with its full totals) */
+  retFilteredGroups(f){
     const d = this.db;
-    const u = this.currentUser();
-    const f = this.returnsFilter;
-    let rows = this.allStores() ? d.returns.slice() : d.returns.filter(r=>this.inUserScope(r,u));
+    const all = this.returnsInScope();
+    let rows = all;
     if(f.store) rows = rows.filter(r=>r.storeId===f.store);
+    if(f.wh) rows = rows.filter(r=>(r.warehouseId||'')===f.wh);
     if(f.item) rows = rows.filter(r=>r.itemId===f.item);
     if(f.reason) rows = rows.filter(r=>r.reason===f.reason);
     if(f.from) rows = rows.filter(r=>r.date>=f.from);
     if(f.to) rows = rows.filter(r=>r.date<=f.to);
-    if(f.q){
-      const q = f.q.trim().toLowerCase();
+    const q = (f.q||'').trim().toLowerCase();
+    if(q){
+      const items = new Map(d.items.map(i=>[i.id,i]));
       rows = rows.filter(r=>{
-        const it = d.items.find(i=>i.id===r.itemId);
-        return retNoMatches(r, q)
-          || (it && (it.barcode||'').toLowerCase().includes(q))
-          || (it && (it.code||'').toLowerCase().includes(q))
-          || (it && (it.name||'').toLowerCase().includes(q));
+        if(retNoMatches(r, q)) return true;
+        const it = items.get(r.itemId);
+        return (it && ((it.barcode||'').toLowerCase().includes(q) || (it.code||'').toLowerCase().includes(q) || (it.name||'').toLowerCase().includes(q)))
+          || (this.storeName(r.storeId)||'').toLowerCase().includes(q);
       });
     }
-    rows.sort((a,b)=> (b.date+b.time).localeCompare(a.date+a.time));
-
-    const totalQty = rows.reduce((a,r)=>a+Number(r.qty||0),0);
+    const keep = new Set(rows.map(r=>r.gid||r.id));
+    return this.retGroupsOf(all.filter(r=>keep.has(r.gid||r.id)));
+  },
+  openReturnDoc(gid){ this.returnsOpen = gid; this.render(); window.scrollTo(0,0); },
+  closeReturnDoc(){ this.returnsOpen = null; this.render(); },
+  renderReturns(){
+    if(this.returnsOpen){
+      const g = this.retGroup(this.returnsOpen);
+      if(g) return this.renderReturnDoc(g);
+      this.returnsOpen = null;
+    }
+    const d = this.db;
+    const f = this.returnsFilter;
+    const groups = this.retFilteredGroups(f);
+    const lineCount = groups.reduce((a,g)=>a+g.count,0);
+    const totalQty = groups.reduce((a,g)=>a+g.qty,0);
     const canPickStore = this.allStores();
-
     return `
       <div class="section-head">
-        <h3>سجل المرتجعات <span class="muted small">(${fmtNum(rows.length)} عملية — إجمالي الكمية ${fmtNum(totalQty)})</span></h3>
+        <h3>سجل المرتجعات <span class="muted small">(${fmtNum(groups.length)} مرتجع — ${fmtNum(lineCount)} صنف — إجمالي الكمية ${fmtNum(totalQty)})</span></h3>
         <div class="actions">
           <button class="btn btn-sm" onclick="App.exportCSV(App.buildReturnsExportRows(),'المرتجعات')">تصدير CSV</button>
           ${this.can('returns.import')? `<button class="btn btn-sm" onclick="App.openImportReturns()">📥 استيراد من إكسيل</button>`:''}
@@ -2475,13 +2563,17 @@ const App = {
 
       <div class="filters card" style="margin-bottom:14px;">
         <div class="field" style="flex:2;min-width:220px;">
-          <label>بحث بالباركود أو رقم المرتجع/التحويل أو اسم الصنف</label>
+          <label>بحث برقم المرتجع / رقم التحويل / الباركود / اسم الصنف</label>
           <input type="text" id="returnsSearchInput" placeholder="اكتب للبحث..." value="${esc(f.q)}" oninput="App.returnsFilter.q=this.value;App.render()">
         </div>
-        ${canPickStore? `<div class="field"><label>المحل</label><select onchange="App.returnsFilter.store=this.value;App.render()">
+        ${canPickStore? `<div class="field"><label>من محل</label><select onchange="App.returnsFilter.store=this.value;App.render()">
           <option value="">كل المحلات</option>
           ${d.stores.map(s=>`<option value="${s.id}" ${f.store===s.id?'selected':''}>${s.code?'['+esc(s.code)+'] ':''}${esc(s.name)}</option>`).join('')}
         </select></div>`:''}
+        <div class="field"><label>إلى مستودع</label><select onchange="App.returnsFilter.wh=this.value;App.render()">
+          <option value="">كل المستودعات</option>
+          ${d.warehouses.map(s=>`<option value="${s.id}" ${f.wh===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}
+        </select></div>
         <div class="field"><label>الصنف</label><select onchange="App.returnsFilter.item=this.value;App.render()">
           <option value="">كل الأصناف</option>
           ${d.items.map(s=>`<option value="${s.id}" ${f.item===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}
@@ -2492,145 +2584,407 @@ const App = {
         </select></div>
         <div class="field"><label>من تاريخ</label><input type="date" value="${f.from}" onchange="App.returnsFilter.from=this.value;App.render()"></div>
         <div class="field"><label>إلى تاريخ</label><input type="date" value="${f.to}" onchange="App.returnsFilter.to=this.value;App.render()"></div>
-        <div class="field" style="flex:0;"><button class="btn btn-sm" onclick="App.returnsFilter={store:'',item:'',from:'',to:'',reason:'',q:''};App.render()">تصفية جديدة</button></div>
+        <div class="field" style="flex:0;"><button class="btn btn-sm" onclick="App.returnsFilter={store:'',wh:'',item:'',from:'',to:'',reason:'',q:''};App.render()">تصفية جديدة</button></div>
       </div>
 
       <div class="tbl-wrap">
         <table class="tbl">
           <thead><tr>
-            <th>رقم المرتجع</th><th>التاريخ</th><th>الوقت</th><th>المحل</th><th>اسم الصنف</th><th>رمز الصنف</th><th>الباركود</th><th>شد الصنف</th><th>الكمية</th><th>رقم تحويل المرتجع</th><th>السبب</th><th>طريقة العلاج</th><th>تاريخ الصلاحية</th><th>المستودع</th><th></th>
+            <th>رقم المرتجع</th><th>من (المحل)</th><th></th><th>إلى (المستودع)</th><th>رقم التحويل</th><th>التاريخ</th><th>الوقت</th><th>عدد الأصناف</th><th>إجمالي الكمية</th><th>طريقة العلاج</th><th>سجّله</th>
           </tr></thead>
           <tbody>
-          ${rows.length===0? `<tr><td colspan="15"><div class="empty">لا توجد مرتجعات مطابقة<br><span class="small">استخدم زر "تسجيل مرتجع جديد" لإضافة أول عملية</span></div></td></tr>` :
-          rows.map(r=>{
-            const it = d.items.find(i=>i.id===r.itemId);
-            return `
+          ${groups.length===0? `<tr><td colspan="11"><div class="empty">لا توجد مرتجعات مطابقة<br><span class="small">استخدم زر "تسجيل مرتجع جديد" لإضافة أول مرتجع</span></div></td></tr>` :
+          groups.map(g=>`
             <tr>
-              <td>${this.retNoLink(r)}</td>
-              <td>${esc(r.date)}</td>
-              <td>${esc(r.time||'—')}</td>
-              <td>${esc(this.storeName(r.storeId)||'—')}</td>
-              <td>${esc(it?it.name:'—')}</td>
-              <td>${esc((it&&it.code)||'—')}</td>
-              <td>${esc((it&&it.barcode)||'—')}</td>
-              <td>${esc((it&&it.packSize)||'—')}</td>
-              <td>${fmtNum(r.qty)} ${esc(this.returnUnit(r))}</td>
-              <td>${esc(r.transferNo||'—')}</td>
-              <td><span class="tag">${esc(r.reason)}</span></td>
-              <td>${this.can('returns.edit')?`<select onchange="App.quickSetResolution('${r.id}',this.value)" style="min-width:150px;">${this.resolutions().map(res=>`<option ${(r.resolution||'معلّق')===res?'selected':''}>${esc(res)}</option>`).join('')}</select>`:`<span class="tag">${esc(r.resolution||'معلّق')}</span>`}</td>
-              <td>${r.expiry? esc(r.expiry) : '<span class="muted">—</span>'}</td>
-              <td>${esc(this.whName(r.warehouseId))}</td>
-              <td>
-                ${this.can('returns.edit')? `<button class="icon-btn" title="تعديل" onclick="App.openReturnForm('${r.id}')">✎</button>`:''}
-                ${this.can('returns.delete')? `<button class="icon-btn" title="حذف" onclick="App.deleteReturn('${r.id}')">✕</button>`:''}
-              </td>
-            </tr>
-          `;}).join('')}
+              <td><a class="ret-no" href="#" onclick="App.openReturnDoc('${esc(g.gid)}');return false;" title="افتح أصناف المرتجع ده">${esc(fmtRetNo(g))}</a></td>
+              <td class="ret-from">${esc(this.storeName(g.storeId)||'—')}</td>
+              <td class="ret-arr">←</td>
+              <td class="ret-to">${esc(this.retToName(g))}</td>
+              <td>${esc(g.transferNo||'—')}</td>
+              <td>${esc(g.date||'')}</td>
+              <td>${esc(g.time||'—')}</td>
+              <td>${this.retCountTxt(g.count)}</td>
+              <td><b>${fmtNum(g.qty)}</b></td>
+              <td>${esc(this.retResSummary(g))}</td>
+              <td>${esc(g.by||'—')}</td>
+            </tr>`).join('')}
           </tbody>
         </table>
       </div>
     `;
   },
+  /* one return, opened: everything about it + its item lines */
+  retDocHeadHtml(g){
+    const times = g.first.time && g.last.time && g.first.time!==g.last.time ? `<span dir="ltr">${esc(g.first.time)} – ${esc(g.last.time)}</span>` : esc(g.last.time||'—');
+    const chip = (l,v)=>`<div class="ret-cell"><div class="small muted">${l}</div><div class="ret-val">${v}</div></div>`;
+    return `
+      <div class="ret-route">
+        <div><div class="small muted">من (المحل)</div><b class="ret-from">${esc(this.storeName(g.storeId)||'—')}</b></div>
+        <div class="ret-arr big">←</div>
+        <div><div class="small muted">إلى (المستودع)</div><b class="ret-to">${esc(this.retToName(g))}</b></div>
+        <div style="flex:1"></div>
+        <div style="text-align:left;"><div class="small muted">عدد الأصناف / إجمالي الكمية</div><b>${this.retCountTxt(g.count)} / ${fmtNum(g.qty)}</b></div>
+      </div>
+      <div class="ret-grid" style="margin-bottom:14px;">
+        ${chip('رقم المرتجع', `<b>${esc(fmtRetNo(g))}</b>`)}
+        ${chip('رقم التحويل', esc(g.transferNo||'—'))}
+        ${chip('التاريخ', esc(g.date||'—'))}
+        ${chip('الوقت', times)}
+        ${chip('سجّله', esc(g.by||'—'))}
+        ${chip('طريقة العلاج', esc(this.retResSummary(g)))}
+        ${g.note? chip('ملاحظات', esc(g.note)) : ''}
+      </div>`;
+  },
+  renderReturnDoc(g){
+    const d = this.db;
+    const canEdit = this.can('returns.edit'), canDel = this.can('returns.delete');
+    return `
+      <div class="section-head">
+        <h3><button class="btn btn-sm" onclick="App.closeReturnDoc()">→ كل المرتجعات</button> &nbsp; مرتجع رقم <span class="ret-no" style="cursor:default;font-size:16px;">${esc(fmtRetNo(g))}</span></h3>
+        <div class="actions">
+          ${this.can('export.pdf')? `<button class="btn btn-sm" onclick="App.printReturnDetails('${esc(g.gid)}')">📄 PDF</button>`:''}
+          ${canEdit? `<button class="btn btn-sm" onclick="App.openReturnDocEdit('${esc(g.gid)}')">✎ تعديل بيانات المرتجع</button>`:''}
+          ${canDel? `<button class="btn btn-sm" onclick="App.deleteReturnDoc('${esc(g.gid)}')">🗑 حذف المرتجع كله</button>`:''}
+          ${this.can('returns.add')? `<button class="btn btn-accent btn-sm" onclick="App.openReturnForm('', '${esc(g.gid)}')">+ إضافة صنف لهذا المرتجع</button>`:''}
+        </div>
+      </div>
+      ${this.retDocHeadHtml(g)}
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr><th>الوقت</th><th>اسم الصنف</th><th>رمز الصنف</th><th>الباركود</th><th>شد الصنف</th><th>الكمية</th><th>السبب</th><th>طريقة العلاج</th><th>تاريخ الصلاحية</th>${g.whs.length>1?'<th>المستودع</th>':''}<th></th></tr></thead>
+          <tbody>
+          ${g.lines.map(r=>{
+            const it = d.items.find(i=>i.id===r.itemId);
+            return `
+            <tr>
+              <td>${esc(r.time||'—')}</td>
+              <td>${esc(it?it.name:'—')}</td>
+              <td>${esc((it&&it.code)||'—')}</td>
+              <td>${esc((it&&it.barcode)||'—')}</td>
+              <td>${esc((it&&it.packSize)||'—')}</td>
+              <td>${fmtNum(r.qty)} ${esc(this.returnUnit(r))}</td>
+              <td><span class="tag">${esc(r.reason)}</span></td>
+              <td>${canEdit?`<select onchange="App.quickSetResolution('${r.id}',this.value)" style="min-width:150px;">${this.resolutions().map(res=>`<option ${(r.resolution||'معلّق')===res?'selected':''}>${esc(res)}</option>`).join('')}</select>`:`<span class="tag">${esc(r.resolution||'معلّق')}</span>`}</td>
+              <td>${r.expiry? esc(r.expiry) : '<span class="muted">—</span>'}</td>
+              ${g.whs.length>1? `<td>${esc(this.whName(r.warehouseId))}</td>`:''}
+              <td>
+                ${canEdit? `<button class="icon-btn" title="تعديل" onclick="App.openReturnForm('${r.id}')">✎</button>`:''}
+                ${canDel? `<button class="icon-btn" title="حذف" onclick="App.deleteReturn('${r.id}')">✕</button>`:''}
+              </td>
+            </tr>`;}).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  },
+  openReturnDocEdit(gid){
+    const g = this.retGroup(gid); if(!g) return;
+    const d = this.db, lockedStore = !this.allStores();
+    this.openModal(`
+      <button class="modal-close" onclick="App.closeModal()">✕</button>
+      <h3>تعديل بيانات المرتجع رقم ${esc(fmtRetNo(g))}</h3>
+      <div class="rf-row" style="grid-template-columns:1fr 1fr;">
+        <div class="field" style="margin:0;"><label>من (المحل)</label><select id="de_store" ${lockedStore?'disabled':''}>${d.stores.map(s=>`<option value="${s.id}" ${g.storeId===s.id?'selected':''}>${s.code?'['+esc(s.code)+'] ':''}${esc(s.name)}</option>`).join('')}</select></div>
+        <div class="field" style="margin:0;"><label>إلى (المستودع المستلم)</label><select id="de_wh"><option value="">— بدون تحديد —</option>${d.warehouses.map(s=>`<option value="${s.id}" ${g.warehouseId===s.id?'selected':''}>${s.code?'['+esc(s.code)+'] ':''}${esc(s.name)}</option>`).join('')}</select></div>
+        <div class="field" style="margin:0;"><label>رقم تحويل المرتجع</label><input type="text" id="de_transfer" value="${esc(g.transferNo)}"></div>
+        <div class="field" style="margin:0;"><label>ملاحظات</label><input type="text" id="de_note" value="${esc(g.note)}"></div>
+      </div>
+      <div class="small muted" style="margin-top:8px;">التعديل بيتطبق على كل أصناف المرتجع ده، والمخزون بيتظبط معاه.</div>
+      <div class="modal-actions">
+        <button class="btn btn-accent" onclick="App.saveReturnDocEdit('${esc(gid)}')">حفظ التعديل</button>
+        <button class="btn" onclick="App.closeModal()">إلغاء</button>
+      </div>`);
+  },
+  saveReturnDocEdit(gid){
+    if(!this.can('returns.edit')) return;
+    const g = this.retGroup(gid); if(!g) return;
+    const storeId = document.getElementById('de_store').value;
+    const warehouseId = document.getElementById('de_wh').value || null;
+    const transferNo = document.getElementById('de_transfer').value.trim();
+    const note = document.getElementById('de_note').value.trim();
+    g.lines.forEach(r=>{
+      this.adjustStock(r.itemId,'store',r.storeId, r.qty);
+      if(r.warehouseId) this.adjustStock(r.itemId,'warehouse',r.warehouseId, -r.qty);
+      Object.assign(r, {storeId, warehouseId, transferNo, note});
+      this.adjustStock(r.itemId,'store',storeId, -r.qty);
+      if(warehouseId) this.adjustStock(r.itemId,'warehouse',warehouseId, r.qty);
+    });
+    this.logActivity(`عدّل بيانات المرتجع رقم ${fmtRetNo(g)} — من ${this.storeName(storeId)||''} إلى ${this.whName(warehouseId)}`);
+    this.closeModal();
+    this.refresh();
+  },
+  deleteReturnDoc(gid){
+    if(!this.can('returns.delete')) return;
+    const g = this.retGroup(gid); if(!g) return;
+    this.confirmAction(`تأكيد حذف المرتجع رقم ${fmtRetNo(g)} كله (${this.retCountTxt(g.count)})؟ المخزون هيرجع زي ما كان.`, ()=>{
+      const ids = new Set(g.lines.map(l=>l.id));
+      g.lines.forEach(r=>{
+        this.adjustStock(r.itemId,'store',r.storeId, r.qty);
+        if(r.warehouseId) this.adjustStock(r.itemId,'warehouse',r.warehouseId, -r.qty);
+      });
+      this.db.returns = this.db.returns.filter(r=>!ids.has(r.id));
+      this.logActivity(`حذف المرتجع رقم ${fmtRetNo(g)} (${this.retCountTxt(g.count)}) — ${this.storeName(g.storeId)||''}`);
+      this.returnsOpen = null;
+      this.refresh();
+    }, 'حذف المرتجع');
+  },
 
   buildReturnsExportRows(){
     const rows = this.allStores() ? this.db.returns : this.db.returns.filter(r=>r.storeId===this.currentUser().storeId);
     return [
-      ['التاريخ','الوقت','المحل','اسم الصنف','رمز الصنف','الباركود','الكمية','الوحدة','رقم تحويل المرتجع','السبب','تاريخ الصلاحية','المستودع'],
+      ['رقم المرتجع','التاريخ','الوقت','المحل','اسم الصنف','رمز الصنف','الباركود','الكمية','الوحدة','رقم تحويل المرتجع','السبب','تاريخ الصلاحية','المستودع'],
       ...rows.map(r=>{
         const it = this.db.items.find(i=>i.id===r.itemId);
-        return [r.date,r.time,this.storeName(r.storeId),it?it.name:'—',(it&&it.code)||'',(it&&it.barcode)||'',r.qty,this.returnUnit(r),r.transferNo,r.reason,r.expiry,this.whName(r.warehouseId)];
+        return [fmtRetNo(r),r.date,r.time,this.storeName(r.storeId),it?it.name:'—',(it&&it.code)||'',(it&&it.barcode)||'',r.qty,this.returnUnit(r),r.transferNo,r.reason,r.expiry,this.whName(r.warehouseId)];
       })
     ];
   },
 
-  openReturnForm(id){
+  /* the item inputs shared by "new return", "add items to a return" and "edit one item" */
+  rfItemInputsHtml(editing){
     const d = this.db;
-    const editing = id ? d.returns.find(r=>r.id===id) : null;
-    const u = this.currentUser();
-    const lockedStore = !this.allStores() ? u.storeId : null;
-
-    if(d.stores.length===0 || d.items.length===0){
-      this.notify('من فضلك أضف محل واحد على الأقل وصنف واحد على الأقل قبل تسجيل مرتجع.');
-      return;
-    }
-
     const initialItemId = editing ? editing.itemId : d.items[0].id;
     const initialItem = d.items.find(i=>i.id===initialItemId) || d.items[0];
-    const initialUnit = (editing && editing.unit) ? editing.unit
-      : (initialItem && UNITS.includes(initialItem.unit) ? initialItem.unit : UNITS[0]);
+    const initialUnit = (editing && editing.unit) ? editing.unit : (initialItem && UNITS.includes(initialItem.unit) ? initialItem.unit : UNITS[0]);
     const isCustomReason = editing && !this.reasons().includes(editing.reason);
-
-    this.openModal(`
-      <button class="modal-close" onclick="App.closeModal()">✕</button>
-      <h3>${editing?'تعديل مرتجع':'تسجيل مرتجع جديد'}</h3>
-      <div class="form-row">
-        <div class="field">
-          <label>المحل</label>
-          <select id="f_store" ${lockedStore?'disabled':''}>
-            ${d.stores.map(s=>`<option value="${s.id}" ${(editing?editing.storeId:lockedStore)===s.id?'selected':''}>${s.code?'['+esc(s.code)+'] ':''}${esc(s.name)}</option>`).join('')}
-          </select>
-        </div>
-        <div class="field">
-          <label>الباركود (اكتب أو امسح للبحث السريع)</label>
-          <input type="text" id="f_barcode" value="${esc(initialItem?initialItem.barcode||'':'')}" oninput="App.onReturnBarcodeInput(this.value)">
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="field">
-          <label>اسم الصنف</label>
+    return `
+      <div class="rf-row rf-i1">
+        <div class="field"><label>الباركود (اكتب أو امسح)</label>
+          <input type="text" id="f_barcode" value="${editing? esc(initialItem?initialItem.barcode||'':'') : ''}" oninput="App.onReturnBarcodeInput(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('f_qty').focus();}"></div>
+        <div class="field"><label>اسم الصنف</label>
           <select id="f_item" onchange="App.onReturnItemSelect()">
             ${d.items.map(s=>`<option value="${s.id}" ${initialItemId===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}
-          </select>
-        </div>
+          </select></div>
         <div class="field"><label>رمز الصنف</label><input type="text" id="f_code" value="${esc(initialItem?initialItem.code||'':'')}" readonly></div>
-      </div>
-      <div class="form-row">
         <div class="field"><label>شد الصنف</label><input type="text" id="f_pack" value="${esc(initialItem?initialItem.packSize||'':'')}" readonly></div>
-        <div class="field">
-          <label>الوحدة</label>
+        <div class="field"><label>الكمية</label><input type="number" min="0" step="any" id="f_qty" value="${editing?editing.qty:''}" ${editing?'':`onkeydown="if(event.key==='Enter'){event.preventDefault();App.rfAddLine();}"`}></div>
+      </div>
+      <div class="rf-row rf-i2">
+        <div class="field"><label>الوحدة</label>
           <input type="hidden" id="f_unit" value="${esc(initialUnit)}">
           <div style="display:flex;gap:6px;flex-wrap:wrap;">
             ${UNITS.map(un=>`<button type="button" class="pill-tab unit-pill ${initialUnit===un?'active':''}" data-unit="${esc(un)}" onclick="App.selectReturnUnit('${esc(un)}')">${esc(un)}</button>`).join('')}
-          </div>
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="field"><label>الكمية</label><input type="number" min="0" step="any" id="f_qty" value="${editing?editing.qty:''}"></div>
-        <div class="field"><label>رقم تحويل المرتجع</label><input type="text" id="f_transfer" value="${editing?esc(editing.transferNo||''):''}"></div>
-      </div>
-      <div class="form-row">
-        <div class="field"><label>تاريخ الترجيع</label><input type="date" id="f_date" value="${editing?editing.date:todayStr()}"></div>
-        <div class="field"><label>وقت الترجيع</label><input type="time" id="f_time" value="${editing?(editing.time||nowTime()):nowTime()}"></div>
-      </div>
-      <div class="form-row">
-        <div class="field">
-          <label>سبب الترجيع</label>
-          <select id="f_reason" onchange="App.onReturnReasonChange()">${this.reasons().map(r=>`<option ${(isCustomReason? r==='أخرى' : editing&&editing.reason===r)?'selected':''}>${esc(r)}</option>`).join('')}</select>
-        </div>
+          </div></div>
+        <div class="field"><label>سبب الترجيع</label>
+          <select id="f_reason" onchange="App.onReturnReasonChange()">${this.reasons().map(r=>`<option ${(isCustomReason? r==='أخرى' : editing&&editing.reason===r)?'selected':''}>${esc(r)}</option>`).join('')}</select></div>
         <div class="field"><label>تاريخ الصلاحية (إن وجد)</label><input type="date" id="f_expiry" value="${editing&&editing.expiry?editing.expiry:''}"></div>
+        <div class="field"><label>طريقة العلاج</label>
+          <select id="f_resolution">${this.resolutions().map(r=>`<option ${(editing?(editing.resolution||'معلّق'):'معلّق')===r?'selected':''}>${esc(r)}</option>`).join('')}</select></div>
+        ${editing? '<div></div>' : `<div class="field"><label>&nbsp;</label><button type="button" class="btn btn-accent" onclick="App.rfAddLine()">+ أضف الصنف</button></div>`}
       </div>
       <div class="field" id="f_reason_other_wrap" style="display:${isCustomReason?'block':'none'};">
         <label>اذكر السبب</label>
         <input type="text" id="f_reason_other" placeholder="اكتب سبب الترجيع بالتفصيل" value="${isCustomReason?esc(editing.reason):''}">
+      </div>`;
+  },
+  /* openReturnForm()            → a new return
+     openReturnForm('', gid)     → add items to an existing return
+     openReturnForm(lineId)      → edit one item of a return */
+  openReturnForm(id, gid){
+    const d = this.db;
+    const editing = id ? d.returns.find(r=>r.id===id) : null;
+    const u = this.currentUser();
+    const lockedStore = !this.allStores() ? u.storeId : null;
+    if(d.stores.length===0 || d.items.length===0){
+      this.notify('من فضلك أضف محل واحد على الأقل وصنف واحد على الأقل قبل تسجيل مرتجع.');
+      return;
+    }
+    if(editing){
+      const g = this.retGroup(editing.gid||editing.id);
+      this.rf = null;
+      this.openModal(`
+        <button class="modal-close" onclick="App.closeModal()">✕</button>
+        <h3>تعديل صنف في المرتجع رقم ${esc(fmtRetNo(editing))}</h3>
+        <div class="small muted" style="margin-bottom:10px;">من <b class="ret-from">${esc(this.storeName(editing.storeId)||'—')}</b> ← إلى <b class="ret-to">${esc(this.whName(editing.warehouseId))}</b> • سُجّل ${esc(editing.date||'')} ${esc(editing.time||'')}${g&&g.transferNo? ' • رقم التحويل '+esc(g.transferNo):''}</div>
+        ${this.rfItemInputsHtml(editing)}
+        <div class="modal-actions">
+          <button class="btn btn-accent" onclick="App.saveReturn('${editing.id}')">حفظ التعديل</button>
+          <button class="btn" onclick="App.closeModal()">إلغاء</button>
+        </div>`, 1100);
+      return;
+    }
+    const doc = gid ? this.retGroup(gid) : null;
+    const defStore = doc ? doc.storeId : (lockedStore || (d.stores[0]&&d.stores[0].id));
+    const defWh = doc ? (doc.warehouseId||'') : (u.warehouseId || this.storeDefaultWarehouse(defStore) || '');
+    this.rf = {gid: doc ? doc.gid : null, lines: []};
+    this.openModal(`
+      <button class="modal-close" onclick="App.closeModal()">✕</button>
+      <h3>${doc? `إضافة أصناف للمرتجع رقم ${esc(fmtRetNo(doc))}` : 'تسجيل مرتجع جديد'}</h3>
+      <div class="rf-sec">بيانات المرتجع</div>
+      <div class="rf-row rf-h">
+        <div class="field"><label>من (المحل)</label>
+          <select id="f_store" ${(lockedStore||doc)?'disabled':''} onchange="App.rfStoreChanged()">
+            ${d.stores.map(s=>`<option value="${s.id}" ${defStore===s.id?'selected':''}>${s.code?'['+esc(s.code)+'] ':''}${esc(s.name)}</option>`).join('')}
+          </select></div>
+        <div class="field"><label>إلى (المستودع المستلم)</label>
+          <select id="f_wh" ${doc?'disabled':''}>
+            <option value="">— بدون تحديد —</option>
+            ${d.warehouses.map(s=>`<option value="${s.id}" ${defWh===s.id?'selected':''}>${s.code?'['+esc(s.code)+'] ':''}${esc(s.name)}</option>`).join('')}
+          </select></div>
+        <div class="field"><label>رقم تحويل المرتجع</label><input type="text" id="f_transfer" placeholder="اختياري" value="${doc?esc(doc.transferNo):''}" ${doc?'disabled':''}></div>
+        <div class="field"><label>تاريخ ووقت الترجيع</label><div class="rf-auto">⏱ بيتسجّل تلقائي وقت الحفظ</div></div>
       </div>
-      <div class="field">
-        <label>المستودع المستلم (اختياري)</label>
-        <select id="f_wh">
-          <option value="">— بدون تحديد —</option>
-          ${d.warehouses.map(s=>`<option value="${s.id}" ${(editing?editing.warehouseId:(u.warehouseId||this.storeDefaultWarehouse(lockedStore||d.stores[0]&&d.stores[0].id)))===s.id?'selected':''}>${s.code?'['+esc(s.code)+'] ':''}${esc(s.name)}</option>`).join('')}
-        </select>
-      </div>
-      <div class="field">
-        <label>طريقة العلاج (ماذا تم فعليًا في البضاعة المرتجعة)</label>
-        <select id="f_resolution">
-          ${this.resolutions().map(r=>`<option ${(editing?editing.resolution:'معلّق')===r?'selected':''}>${esc(r)}</option>`).join('')}
-        </select>
-      </div>
+      ${doc? '' : `<div class="field"><label>ملاحظات (اختياري)</label><input type="text" id="f_note" placeholder="أي ملاحظة على المرتجع ده"></div>`}
+      <div class="rf-sec">إضافة صنف</div>
+      ${this.rfItemInputsHtml(null)}
+      <div class="rf-sec"><span id="rfCount">أصناف المرتجع ده (٠)</span></div>
+      ${this.can('returns.import')? `<div style="margin-bottom:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <button type="button" class="btn btn-sm" onclick="document.getElementById('rfFile').click()">📥 استيراد أصناف من إكسيل</button>
+        <input type="file" id="rfFile" accept=".xlsx,.xls,.xlsm,.csv" style="display:none" onchange="App.rfImportFile(this)">
+        <span class="small muted">أي شيت فيه الصنف (كود / باركود / اسم) والكمية — وهينزلوا في الجدول تراجعهم قبل الحفظ.</span>
+      </div><div id="rfImportMsg"></div>` : ''}
+      <div id="rfLines"></div>
       <div class="modal-actions">
-        <button class="btn btn-accent" onclick="App.saveReturn('${editing?editing.id:''}')">${editing?'حفظ التعديل':'حفظ المرتجع'}</button>
+        <button class="btn btn-accent" id="rfSaveBtn" onclick="App.saveReturnDoc()">حفظ المرتجع</button>
         <button class="btn" onclick="App.closeModal()">إلغاء</button>
-      </div>
-    `);
+      </div>`, 1100);
+    this.rfRenderLines();
+    const bc = document.getElementById('f_barcode'); if(bc) bc.focus();
+  },
+  rfStoreChanged(){
+    const st = document.getElementById('f_store'), wh = document.getElementById('f_wh');
+    if(!st || !wh) return;
+    const def = this.storeDefaultWarehouse(st.value);
+    if(def) wh.value = def;
+  },
+  /* read the item inputs → a line, or null (after telling the user what is missing) */
+  rfReadLine(quiet){
+    const itemId = document.getElementById('f_item').value;
+    const unit = document.getElementById('f_unit').value;
+    const qty = parseFloat(document.getElementById('f_qty').value);
+    let reason = document.getElementById('f_reason').value;
+    const expiry = document.getElementById('f_expiry').value;
+    const resolution = document.getElementById('f_resolution').value || 'معلّق';
+    if(reason === 'أخرى'){
+      const other = document.getElementById('f_reason_other').value.trim();
+      if(!other){ if(!quiet) this.notify('من فضلك اكتب سبب الترجيع في الخانة اللي ظهرت بعد اختيار "أخرى".'); return null; }
+      reason = other;
+    }
+    if(!itemId || !qty || qty<=0){ if(!quiet) this.notify('اختار الصنف واكتب الكمية الأول.'); return null; }
+    return {itemId, unit, qty, reason, expiry, resolution};
+  },
+  rfAddLine(){
+    if(!this.rf) return;
+    const line = this.rfReadLine(false);
+    if(!line) return;
+    this.rf.lines.push(line);
+    document.getElementById('f_qty').value = '';
+    document.getElementById('f_expiry').value = '';
+    const bc = document.getElementById('f_barcode'); bc.value = ''; bc.focus();
+    this.rfRenderLines();
+  },
+  rfRemoveLine(i){ if(this.rf){ this.rf.lines.splice(i,1); this.rfRenderLines(); } },
+  rfRenderLines(){
+    const box = document.getElementById('rfLines'), st = this.rf;
+    if(!box || !st) return;
+    const d = this.db, n = st.lines.length;
+    const cnt = document.getElementById('rfCount'); if(cnt) cnt.textContent = `أصناف المرتجع ده (${fmtNum(n)})`;
+    const btn = document.getElementById('rfSaveBtn'); if(btn) btn.textContent = n ? `حفظ المرتجع (${this.retCountTxt(n)})` : 'حفظ المرتجع';
+    if(!n){ box.innerHTML = `<div class="empty" style="padding:14px;">لسه مفيش أصناف — اكتب الصنف والكمية ودوس «أضف الصنف»، أو استورد من إكسيل.</div>`; return; }
+    box.innerHTML = `<div class="tbl-wrap" style="max-height:260px;overflow:auto;"><table class="tbl">
+      <thead><tr><th>#</th><th>اسم الصنف</th><th>رمز الصنف</th><th>الباركود</th><th>شد الصنف</th><th>الكمية</th><th>السبب</th><th>تاريخ الصلاحية</th><th>طريقة العلاج</th><th></th></tr></thead><tbody>
+      ${st.lines.map((l,i)=>{ const it = d.items.find(x=>x.id===l.itemId)||{}; return `<tr>
+        <td>${fmtNum(i+1)}</td><td>${esc(it.name||'—')}</td><td>${esc(it.code||'—')}</td><td>${esc(it.barcode||'—')}</td><td>${esc(it.packSize||'—')}</td>
+        <td><b>${fmtNum(l.qty)}</b> ${esc(l.unit||it.unit||'')}</td><td><span class="tag">${esc(l.reason)}</span></td><td>${l.expiry?esc(l.expiry):'—'}</td><td>${esc(l.resolution||'معلّق')}</td>
+        <td><button type="button" class="icon-btn" title="شيل الصنف ده" onclick="App.rfRemoveLine(${i})">✕</button></td></tr>`; }).join('')}
+      </tbody></table></div>`;
+  },
+  /* Excel inside the new-return screen: any sheet with the item (code / barcode / name) and the quantity */
+  rfImportFile(input){
+    const st = this.rf, msg = document.getElementById('rfImportMsg');
+    const file = input.files && input.files[0];
+    if(!st || !file) return;
+    if(msg) msg.innerHTML = '<div class="small muted" style="margin-bottom:8px;">جاري قراءة الملف…</div>';
+    const reader = new FileReader();
+    reader.onload = (e)=>{
+      try{
+        const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellDates:true});
+        const maps = this._stockMaps();
+        let best = null;
+        wb.SheetNames.forEach(n=>{
+          const aoa = XLSX.utils.sheet_to_json(wb.Sheets[n], {header:1, raw:true, defval:''});
+          const a = this._analyzeStockSheet(aoa, maps);
+          const map = {};
+          a.header.forEach((h,c)=>{ const f = this._moveFieldOf(h); if(f && map[f]==null) map[f] = c; });
+          const taken = new Set(Object.values(map));
+          if(map.qty==null){ const q = a.qtyCands.find(c=>!taken.has(c) && !a.idCols.includes(c)); if(q!=null) map.qty = q; }
+          const matched = a.data.filter(r=>a.idCols.some(c=>this._matchItem(r[c], maps))).length;
+          if(!best || matched>best.matched) best = {a, map, matched};
+        });
+        const defReason = document.getElementById('f_reason').value==='أخرى' ? (document.getElementById('f_reason_other').value.trim()||'أخرى') : document.getElementById('f_reason').value;
+        const defRes = document.getElementById('f_resolution').value || 'معلّق';
+        const unknown = new Map(); let added = 0, noQty = 0;
+        if(best && best.map.qty!=null){
+          const {a, map} = best;
+          a.data.forEach(r=>{
+            let it = null;
+            for(const c of a.idCols){ it = this._matchItem(r[c], maps); if(it) break; }
+            const qty = this._parseQty(r[map.qty]);
+            if(!it){
+              const label = (a.idCols.length? r[a.idCols[0]] : '') || r.find(v=>typeof v==='string' && v.trim() && isNaN(this._parseQty(v))) || '';
+              if(String(label).trim() && !isNaN(qty) && !/اجمال|مجموع|total|sum/i.test(this._arNorm(label))) unknown.set(String(label).trim(), true);
+              return;
+            }
+            if(isNaN(qty) || qty<=0){ noQty++; return; }
+            const reason = (map.reason!=null && String(r[map.reason]).trim()) || defReason;
+            const expiry = map.expiry!=null ? this._parseDateCell(r[map.expiry]) : '';
+            st.lines.push({itemId:it.id, unit: it.unit && UNITS.includes(it.unit) ? it.unit : (it.unit||UNITS[0]), qty, reason, expiry: /^\d{4}-\d{2}-\d{2}$/.test(expiry)?expiry:'', resolution:defRes});
+            added++;
+          });
+        }
+        const un = Array.from(unknown.keys());
+        if(msg) msg.innerHTML = `<div class="help-box" style="margin-bottom:8px;${added?'':'border-color:var(--warn);'}">
+          ${added? `✅ اتضاف <b>${fmtNum(added)}</b> صنف من الملف — راجعهم في الجدول قبل الحفظ.` : '⚠️ ملقتش في الملف أصناف مسجلة عندك ومعاها كمية.'}
+          ${noQty? ` <span class="muted">(${fmtNum(noQty)} سطر من غير كمية اتسابوا)</span>`:''}
+          ${un.length? `<div class="small" style="margin-top:4px;">أصناف مش متسجلة في البرنامج (${fmtNum(un.length)}): ${un.slice(0,8).map(x=>esc(x)).join('، ')}${un.length>8?' …':''}</div>`:''}</div>`;
+        this.rfRenderLines();
+      }catch(err){
+        console.error(err);
+        if(msg) msg.innerHTML = `<div class="help-box" style="color:var(--bad);margin-bottom:8px;">تعذّرت قراءة الملف. تأكد إنه ملف إكسيل (xlsx / xls) أو csv.</div>`;
+      }
+      input.value = '';
+    };
+    reader.readAsArrayBuffer(file);
+  },
+  /* save the whole return: one number for all its items; date and time are taken automatically */
+  saveReturnDoc(){
+    const st = this.rf;
+    if(!st) return;
+    if(!this.can('returns.add')){ this.notify('مش مسموح لحسابك بتسجيل مرتجعات — كلّم المدير.'); return; }
+    // an item typed in the inputs but not added yet counts too
+    const qtyEl = document.getElementById('f_qty');
+    if(qtyEl && parseFloat(qtyEl.value)>0){ const l = this.rfReadLine(false); if(!l) return; st.lines.push(l); qtyEl.value = ''; }
+    if(!st.lines.length){ this.notify('أضف صنف واحد على الأقل (الصنف والكمية) قبل الحفظ.'); return; }
+    const doc = st.gid ? this.retGroup(st.gid) : null;
+    const storeId = doc ? doc.storeId : document.getElementById('f_store').value;
+    const warehouseId = doc ? (doc.warehouseId||null) : (document.getElementById('f_wh').value || null);
+    const transferNo = doc ? doc.transferNo : document.getElementById('f_transfer').value.trim();
+    const noteEl = document.getElementById('f_note');
+    const note = doc ? doc.note : (noteEl ? noteEl.value.trim() : '');
+    if(!storeId){ this.notify('اختار المحل.'); return; }
+    const u = this.currentUser();
+    const gid = doc ? doc.gid : 'g_'+uid();
+    const date = todayStr(), time = nowTime();
+    const by = (u && (u.name||u.username)) || '';
+    st.lines.forEach(l=>{
+      const rec = {id:uid(), gid, storeId, itemId:l.itemId, unit:l.unit, qty:l.qty, transferNo, date, time, reason:l.reason, expiry:l.expiry||'', warehouseId, resolution:l.resolution||'معلّق', createdBy:by};
+      if(doc) rec.no = doc.no;
+      if(note) rec.note = note;
+      this.db.returns.push(rec);
+      // a return moves stock from the store back to the warehouse
+      this.adjustStock(l.itemId,'store',storeId, -l.qty);
+      if(warehouseId) this.adjustStock(l.itemId,'warehouse',warehouseId, l.qty);
+    });
+    ensureReturnNos(this.db);
+    const saved = this.db.returns.find(r=>r.gid===gid);
+    const n = st.lines.length, total = st.lines.reduce((a,l)=>a+Number(l.qty||0),0);
+    this.logActivity(doc ? `أضاف ${this.retCountTxt(n)} للمرتجع رقم ${fmtRetNo(saved)} — ${this.storeName(storeId)||''}`
+      : `سجّل مرتجع جديد رقم ${fmtRetNo(saved)}: ${this.retCountTxt(n)} (${fmtNum(total)}) — من ${this.storeName(storeId)||''} إلى ${this.whName(warehouseId)}`);
+    this.rf = null;
+    this.closeModal();
+    if(this.view==='returns') this.returnsOpen = gid;
+    this.refresh();
+    this.notify(doc ? `تمت إضافة ${this.retCountTxt(n)} للمرتجع رقم ${fmtRetNo(saved)} ✅` : `تم حفظ المرتجع رقم ${fmtRetNo(saved)} ✅ (${this.retCountTxt(n)})`);
   },
   onReturnItemSelect(){
     const itemId = document.getElementById('f_item').value;
@@ -2672,49 +3026,17 @@ const App = {
 
 
   saveReturn(id){
-    const storeId = document.getElementById('f_store').value;
-    const itemId = document.getElementById('f_item').value;
-    const unit = document.getElementById('f_unit').value;
-    const qty = parseFloat(document.getElementById('f_qty').value);
-    const transferNo = document.getElementById('f_transfer').value.trim();
-    const date = document.getElementById('f_date').value;
-    const time = document.getElementById('f_time').value;
-    let reason = document.getElementById('f_reason').value;
-    const expiry = document.getElementById('f_expiry').value;
-    const warehouseId = document.getElementById('f_wh').value || null;
-    const resolutionEl = document.getElementById('f_resolution');
-    const resolution = resolutionEl ? resolutionEl.value : 'معلّق';
-
-    if(reason === 'أخرى'){
-      const otherReason = document.getElementById('f_reason_other').value.trim();
-      if(!otherReason){
-        this.notify('من فضلك اكتب سبب الترجيع في الخانة اللي ظهرت بعد اختيار "أخرى".');
-        return;
-      }
-      reason = otherReason;
-    }
-
-    if(!storeId || !itemId || !qty || qty<=0 || !date){
-      this.notify('من فضلك أكمل الحقول المطلوبة: المحل، الصنف، الكمية، التاريخ.');
-      return;
-    }
-    const itName = this.itemName(itemId);
-    if(id){
-      const r = this.db.returns.find(x=>x.id===id);
-      // reverse this return's old stock effect before applying the edited values
-      this.adjustStock(r.itemId,'store',r.storeId, r.qty);
-      if(r.warehouseId) this.adjustStock(r.itemId,'warehouse',r.warehouseId, -r.qty);
-      Object.assign(r, {storeId,itemId,unit,qty,transferNo,date,time,reason,expiry,warehouseId,resolution});
-      this.adjustStock(itemId,'store',storeId, -qty);
-      if(warehouseId) this.adjustStock(itemId,'warehouse',warehouseId, qty);
-      this.logActivity(`عدّل مرتجع: ${itName} (${fmtNum(qty)}) — ${this.storeName(storeId)||''}`);
-    } else {
-      this.db.returns.push({id:uid(), storeId,itemId,unit,qty,transferNo,date,time,reason,expiry,warehouseId,resolution});
-      // a return moves stock from the store back to the warehouse
-      this.adjustStock(itemId,'store',storeId, -qty);
-      if(warehouseId) this.adjustStock(itemId,'warehouse',warehouseId, qty);
-      this.logActivity(`سجّل مرتجع جديد: ${itName} (${fmtNum(qty)}) — ${this.storeName(storeId)||''}`);
-    }
+    const r = this.db.returns.find(x=>x.id===id);
+    if(!r) return;
+    const l = this.rfReadLine(false);
+    if(!l) return;
+    // reverse this item's old stock effect before applying the edited values
+    this.adjustStock(r.itemId,'store',r.storeId, r.qty);
+    if(r.warehouseId) this.adjustStock(r.itemId,'warehouse',r.warehouseId, -r.qty);
+    Object.assign(r, {itemId:l.itemId, unit:l.unit, qty:l.qty, reason:l.reason, expiry:l.expiry, resolution:l.resolution});
+    this.adjustStock(r.itemId,'store',r.storeId, -r.qty);
+    if(r.warehouseId) this.adjustStock(r.itemId,'warehouse',r.warehouseId, r.qty);
+    this.logActivity(`عدّل صنف في المرتجع رقم ${fmtRetNo(r)}: ${this.itemName(r.itemId)} (${fmtNum(r.qty)}) — ${this.storeName(r.storeId)||''}`);
     this.closeModal();
     this.refresh();
   },
@@ -3029,7 +3351,7 @@ const App = {
     res.rows.forEach(r=>{
       if(st.kind==='returns'){
         this.db.returns.push({id:uid(), storeId:r.storeId, itemId:r.itemId, warehouseId:r.warehouseId, unit:r.unit, qty:r.qty,
-          transferNo:r.transferNo, date:r.date, time:r.time, reason:r.reason, expiry:r.expiry});
+          transferNo:r.transferNo, date:r.date, time:r.time, reason:r.reason, expiry:r.expiry, resolution:'معلّق', createdBy:(this.currentUser()||{}).name || (this.currentUser()||{}).username || ''});
         // a return moves stock from the store back to the warehouse
         this.adjustStock(r.itemId,'store',r.storeId, -r.qty);
         if(r.warehouseId) this.adjustStock(r.itemId,'warehouse',r.warehouseId, r.qty);
@@ -6529,138 +6851,94 @@ service cloud.firestore {
     return [['الفرع','عدد العمليات','إجمالي الكمية','أكثر سبب','التغيّر %'], ...ranking.map(r=>[r.store.name, r.count, r.qty, r.topReason, r.delta])];
   },
 
-  /* ---------------- RETURNS REGISTER (every return with all its data; search by number; click a number for full details) ---------------- */
-  rp_record:{query:'', store:'', from:'', to:'', limit:200},
-  resetRecordFilter(){ this.rp_record = {query:'', store:'', from:'', to:'', limit:200}; this.render(); },
-  retNoLink(r){
-    return `<a class="ret-no" href="#" onclick="App.openReturnDetails('${esc(r.id)}');return false;" title="كل تفاصيل المرتجع ده">${esc(fmtRetNo(r))}</a>`;
-  },
+  /* ---------------- RETURNS REGISTER (one row per return; search by number; click a number for everything in it) ---------------- */
+  rp_record:{q:'', store:'', wh:'', from:'', to:'', limit:200},
+  resetRecordFilter(){ this.rp_record = {q:'', store:'', wh:'', from:'', to:'', limit:200}; this.render(); },
   returnsInScope(){
     const u = this.currentUser();
     return this.allStores() ? this.db.returns : this.db.returns.filter(r=>this.inUserScope(r,u));
   },
-  recordRows(){
-    const d = this.db, st = this.rp_record;
-    let rows = this.returnsInScope().slice();
-    if(st.store) rows = rows.filter(r=>r.storeId===st.store);
-    if(st.from) rows = rows.filter(r=>r.date>=st.from);
-    if(st.to) rows = rows.filter(r=>r.date<=st.to);
-    const q = (st.query||'').trim().toLowerCase();
-    if(q){
-      const items = new Map(d.items.map(i=>[i.id,i]));
-      rows = rows.filter(r=>{
-        if(retNoMatches(r, q)) return true;
-        const it = items.get(r.itemId);
-        return (it && ((it.name||'').toLowerCase().includes(q) || (it.code||'').toLowerCase().includes(q) || (it.barcode||'').toLowerCase().includes(q)))
-          || (this.storeName(r.storeId)||'').toLowerCase().includes(q);
-      });
-    }
-    rows.sort((a,b)=> ((b.date||'')+(b.time||'')).localeCompare((a.date||'')+(a.time||'')) || (b.no||0)-(a.no||0));
-    return rows;
-  },
-  /* everything known about one return (used in the pop-up, under the search box, and in its PDF) */
-  returnDetailsHtml(rec){
+  /* everything about one return, read-only (pop-up, under the search box, and its PDF) */
+  returnDetailsHtml(g){
     const d = this.db;
-    const it = d.items.find(i=>i.id===rec.itemId) || {};
-    const store = d.stores.find(x=>x.id===rec.storeId) || {};
-    const wh = d.warehouses.find(x=>x.id===rec.warehouseId) || {};
+    const money = this.can('finance.view');
+    const val = l=>{ const it = d.items.find(i=>i.id===l.itemId)||{}; return Number(it.cost||0)*Number(l.qty||0); };
+    const total = g.lines.reduce((a,l)=>a+val(l),0);
+    const showVal = money && total>0;
     const today = todayStr();
-    const exp = rec.expiry ? (rec.expiry < today ? ' <span class="tag bad">منتهية</span>' : '') : '';
-    const cell = (label, val)=>`<div class="ret-cell"><div class="small muted">${label}</div><div class="ret-val">${val}</div></div>`;
-    const money = this.can('finance.view') && Number(it.cost)>0;
-    const siblings = rec.transferNo ? this.returnsInScope().filter(r=>r.id!==rec.id && (r.transferNo||'')===rec.transferNo) : [];
-    const sameQty = siblings.reduce((a,r)=>a+Number(r.qty||0), Number(rec.qty||0));
     return `
-      <div class="ret-grid">
-        ${cell('رقم المرتجع', `<b style="font-size:17px;">${esc(fmtRetNo(rec))}</b>`)}
-        ${cell('رقم تحويل المرتجع', esc(rec.transferNo||'—'))}
-        ${cell('التاريخ', esc(rec.date||'—'))}
-        ${cell('الوقت', esc(rec.time||'—'))}
-        ${cell('المحل / الفرع', esc(store.name||'—') + (store.code? ` <span class="muted small">(${esc(store.code)})</span>`:''))}
-        ${cell('المستودع', esc(wh.name||'—') + (wh.code? ` <span class="muted small">(${esc(wh.code)})</span>`:''))}
-        ${cell('الصنف', `<b>${esc(it.name||'—')}</b>`)}
-        ${cell('رمز الصنف', esc(it.code||'—'))}
-        ${cell('الباركود', esc(it.barcode||'—'))}
-        ${cell('شد الصنف', esc(it.packSize||'—'))}
-        ${cell('الكمية', `<b>${fmtNum(rec.qty)}</b> ${esc(this.returnUnit(rec))}`)}
-        ${cell('السبب', `<span class="tag">${esc(rec.reason||'—')}</span>`)}
-        ${cell('تاريخ الصلاحية', (rec.expiry? esc(rec.expiry) : '—') + exp)}
-        ${cell('الإجراء / القرار', esc(rec.resolution||'معلّق'))}
-        ${money? cell('تكلفة الوحدة', fmtNum(it.cost)) : ''}
-        ${money? cell('قيمة المرتجع', `<b>${fmtNum(Math.round(Number(it.cost)*Number(rec.qty||0)*100)/100)}</b>`) : ''}
-      </div>
-      ${siblings.length? `
-      <div style="margin-top:16px;">
-        <b>باقي أصناف نفس رقم التحويل (${esc(rec.transferNo)})</b>
-        <span class="small muted"> — ${fmtNum(siblings.length+1)} صنف، إجمالي الكمية ${fmtNum(sameQty)}</span>
-        <div class="tbl-wrap" style="margin-top:8px;"><table class="tbl"><thead><tr><th>رقم المرتجع</th><th>التاريخ</th><th>الصنف</th><th>رمز الصنف</th><th>الكمية</th><th>السبب</th><th>الإجراء</th></tr></thead><tbody>
-          ${siblings.map(r=>{ const i2 = d.items.find(i=>i.id===r.itemId)||{}; return `<tr><td>${this.retNoLink(r)}</td><td>${esc(r.date||'')}</td><td>${esc(i2.name||'—')}</td><td>${esc(i2.code||'—')}</td><td>${fmtNum(r.qty)} ${esc(this.returnUnit(r))}</td><td>${esc(r.reason||'—')}</td><td>${esc(r.resolution||'معلّق')}</td></tr>`; }).join('')}
-        </tbody></table></div>
-      </div>` : ''}`;
+      ${this.retDocHeadHtml(g)}
+      <div class="tbl-wrap"><table class="tbl">
+        <thead><tr><th>#</th><th>اسم الصنف</th><th>رمز الصنف</th><th>الباركود</th><th>شد الصنف</th><th>الكمية</th><th>الوحدة</th><th>السبب</th><th>تاريخ الصلاحية</th><th>طريقة العلاج</th>${g.whs.length>1?'<th>المستودع</th>':''}${showVal?'<th>القيمة</th>':''}</tr></thead>
+        <tbody>
+        ${g.lines.slice().reverse().map((l,i)=>{ const it = d.items.find(x=>x.id===l.itemId)||{}; return `<tr>
+          <td>${fmtNum(i+1)}</td><td>${esc(it.name||'—')}</td><td>${esc(it.code||'—')}</td><td>${esc(it.barcode||'—')}</td><td>${esc(it.packSize||'—')}</td>
+          <td><b>${fmtNum(l.qty)}</b></td><td>${esc(this.returnUnit(l))}</td><td><span class="tag">${esc(l.reason||'—')}</span></td>
+          <td>${l.expiry? esc(l.expiry)+(l.expiry<today?' <span class="tag bad">منتهية</span>':'') : '—'}</td><td>${esc(l.resolution||'معلّق')}</td>
+          ${g.whs.length>1? `<td>${esc(this.whName(l.warehouseId))}</td>`:''}${showVal? `<td>${fmtNum(Math.round(val(l)*100)/100)}</td>`:''}</tr>`; }).join('')}
+        </tbody>
+      </table></div>
+      ${showVal? `<div class="small" style="margin-top:8px;text-align:left;">إجمالي قيمة المرتجع: <b>${fmtNum(Math.round(total*100)/100)}</b></div>`:''}`;
   },
-  openReturnDetails(id){
-    const rec = this.returnsInScope().find(r=>r.id===id);
-    if(!rec){ this.notify('المرتجع ده مش موجود أو خارج نطاق فرعك.'); return; }
+  openReturnDetails(gid){
+    const g = this.retGroup(gid);
+    if(!g){ this.notify('المرتجع ده مش موجود أو خارج نطاق فرعك.'); return; }
     this.openModal(`
       <button class="modal-close" onclick="App.closeModal()">✕</button>
-      <h3>تفاصيل المرتجع رقم ${esc(fmtRetNo(rec))}</h3>
-      ${this.returnDetailsHtml(rec)}
+      <h3>تفاصيل المرتجع رقم ${esc(fmtRetNo(g))}</h3>
+      ${this.returnDetailsHtml(g)}
       <div class="modal-actions">
-        ${this.can('export.pdf')? `<button class="btn btn-accent" onclick="App.printReturnDetails('${esc(rec.id)}')">📄 PDF</button>`:''}
-        ${this.can('returns.edit')? `<button class="btn" onclick="App.openReturnForm('${esc(rec.id)}')">✎ تعديل</button>`:''}
+        ${this.can('export.pdf')? `<button class="btn btn-accent" onclick="App.printReturnDetails('${esc(g.gid)}')">📄 PDF</button>`:''}
+        ${this.can('returns.view')? `<button class="btn" onclick="App.closeModal();App.returnsOpen='${esc(g.gid)}';App.go('returns')">فتح في صفحة المرتجعات</button>`:''}
         <button class="btn" onclick="App.closeModal()">إغلاق</button>
-      </div>`, true);
+      </div>`, 1100);
   },
-  printReturnDetails(id){
+  printReturnDetails(gid){
     if(!this.can('export.pdf')){ this.notify('مش مسموح لحسابك بالتحميل ده — كلّم المدير.'); return; }
-    const rec = this.returnsInScope().find(r=>r.id===id);
-    if(!rec) return;
-    const box = document.createElement('div');
-    box.innerHTML = this.returnDetailsHtml(rec);
-    this.printHtmlDoc(this.buildPrintDoc({ title: 'تفاصيل المرتجع رقم ' + fmtRetNo(rec), bodyHtml: `<div class="card">${box.innerHTML}</div>`, landscape:false }));
+    const g = this.retGroup(gid);
+    if(!g) return;
+    this.printHtmlDoc(this.buildPrintDoc({ title: 'مرتجع رقم ' + fmtRetNo(g), bodyHtml: `<div class="card">${this.returnDetailsHtml(g)}</div>`, landscape:true }));
   },
   reportRecordLookup(){
     const d = this.db, st = this.rp_record;
-    const rows = this.recordRows();
-    const q = (st.query||'').trim();
-    const totalQty = rows.reduce((a,r)=>a+Number(r.qty||0),0);
-    const shown = rows.slice(0, st.limit||200);
-    const items = new Map(d.items.map(i=>[i.id,i]));
-    const one = (q && rows.length===1) ? rows[0] : null;     // the search landed on exactly one return → show it in full right away
+    const groups = this.retFilteredGroups({q:st.q, store:st.store, wh:st.wh, from:st.from, to:st.to});
+    const q = (st.q||'').trim();
+    const lineCount = groups.reduce((a,g)=>a+g.count,0), totalQty = groups.reduce((a,g)=>a+g.qty,0);
+    const shown = groups.slice(0, st.limit||200);
+    const one = (q && groups.length===1) ? groups[0] : null;     // the search landed on exactly one return → show it in full right away
     return `
     <div class="card">
       <div class="grid grid-4" style="align-items:end;">
         <div class="field" style="margin:0;"><label>بحث برقم المرتجع أو رقم التحويل</label>
-          <input type="text" id="recordLookupInput" placeholder="اكتب الرقم… أو اسم/رمز/باركود صنف" value="${esc(st.query)}" oninput="App.rp_record.query=this.value;App.rp_record.limit=200;App.reReport()"></div>
-        ${this.allStores()? `<div class="field" style="margin:0;"><label>المحل</label>
+          <input type="text" id="recordLookupInput" placeholder="اكتب الرقم… أو اسم/رمز/باركود صنف" value="${esc(st.q)}" oninput="App.rp_record.q=this.value;App.rp_record.limit=200;App.reReport()"></div>
+        ${this.allStores()? `<div class="field" style="margin:0;"><label>من محل</label>
           <select onchange="App.rp_record.store=this.value;App.reReport()"><option value="">كل المحلات</option>${d.stores.map(s=>`<option value="${esc(s.id)}" ${st.store===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div>` : ''}
         <div class="field" style="margin:0;"><label>من تاريخ</label><input type="date" value="${esc(st.from)}" onchange="App.rp_record.from=this.value;App.reReport()"></div>
         <div class="field" style="margin:0;"><label>إلى تاريخ</label><input type="date" value="${esc(st.to)}" onchange="App.rp_record.to=this.value;App.reReport()"></div>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;">
-        <div class="small muted">النتيجة: <b style="color:var(--ink);">${fmtNum(rows.length)}</b> مرتجع • إجمالي الكمية <b style="color:var(--ink);">${fmtNum(totalQty)}</b> — دوس على <b>رقم المرتجع</b> لعرض كل تفاصيله.</div>
+        <div class="small muted">النتيجة: <b style="color:var(--ink);">${fmtNum(groups.length)}</b> مرتجع • ${fmtNum(lineCount)} صنف • إجمالي الكمية <b style="color:var(--ink);">${fmtNum(totalQty)}</b> — دوس على <b>رقم المرتجع</b> لعرض كل تفاصيله.</div>
         ${(q||st.store||st.from||st.to)? `<button class="btn btn-sm" onclick="App.resetRecordFilter()">مسح البحث</button>` : ''}
       </div>
     </div>
     ${one? `<div class="card" style="margin-top:14px;border-color:var(--accent);">
-        <div class="section-head"><h3>تفاصيل المرتجع رقم ${esc(fmtRetNo(one))}</h3>
-          ${this.can('returns.edit')? `<button class="btn btn-sm" onclick="App.openReturnForm('${esc(one.id)}')">✎ تعديل</button>`:''}</div>
+        <div class="section-head"><h3>تفاصيل المرتجع رقم ${esc(fmtRetNo(one))}</h3></div>
         ${this.returnDetailsHtml(one)}
       </div>` : ''}
     <div class="card" style="margin-top:14px;">
       <div class="section-head"><h3>سجل المرتجعات</h3></div>
-      ${rows.length===0? `<div class="empty">لا توجد مرتجعات مطابقة${this.allStores()?'':' (في نطاق فرعك)'}</div>` : `
+      ${groups.length===0? `<div class="empty">لا توجد مرتجعات مطابقة${this.allStores()?'':' (في نطاق فرعك)'}</div>` : `
       <div class="tbl-wrap"><table class="tbl">
-        <thead><tr><th>رقم المرتجع</th><th>رقم التحويل</th><th>التاريخ</th><th>الوقت</th><th>المحل</th><th>اسم الصنف</th><th>رمز الصنف</th><th>الباركود</th><th>الكمية</th><th>الوحدة</th><th>السبب</th><th>الصلاحية</th><th>المستودع</th><th>الإجراء</th></tr></thead>
+        <thead><tr><th>رقم المرتجع</th><th>من (المحل)</th><th>إلى (المستودع)</th><th>رقم التحويل</th><th>التاريخ</th><th>الوقت</th><th>عدد الأصناف</th><th>إجمالي الكمية</th><th>طريقة العلاج</th><th>سجّله</th></tr></thead>
         <tbody>
-        ${shown.map(r=>{ const it = items.get(r.itemId)||{}; return `<tr>
-          <td>${this.retNoLink(r)}</td><td>${esc(r.transferNo||'—')}</td><td>${esc(r.date||'')}</td><td>${esc(r.time||'—')}</td>
-          <td>${esc(this.storeName(r.storeId)||'—')}</td><td>${esc(it.name||'—')}</td><td>${esc(it.code||'—')}</td><td>${esc(it.barcode||'—')}</td>
-          <td>${fmtNum(r.qty)}</td><td>${esc(this.returnUnit(r))}</td><td><span class="tag">${esc(r.reason||'—')}</span></td>
-          <td>${r.expiry? esc(r.expiry) : '—'}</td><td>${esc(this.whName(r.warehouseId))}</td><td>${esc(r.resolution||'معلّق')}</td></tr>`; }).join('')}
+        ${shown.map(g=>`<tr>
+          <td><a class="ret-no" href="#" onclick="App.openReturnDetails('${esc(g.gid)}');return false;" title="كل تفاصيل المرتجع ده">${esc(fmtRetNo(g))}</a></td>
+          <td class="ret-from">${esc(this.storeName(g.storeId)||'—')}</td><td class="ret-to">${esc(this.retToName(g))}</td>
+          <td>${esc(g.transferNo||'—')}</td><td>${esc(g.date||'')}</td><td>${esc(g.time||'—')}</td>
+          <td>${fmtNum(g.count)}</td><td>${fmtNum(g.qty)}</td><td>${esc(this.retResSummary(g))}</td><td>${esc(g.by||'—')}</td></tr>`).join('')}
         </tbody></table></div>
-      ${rows.length>shown.length? `<div class="no-print" style="display:flex;gap:8px;align-items:center;justify-content:center;margin-top:12px;flex-wrap:wrap;">
-        <span class="small muted">معروض ${fmtNum(shown.length)} من ${fmtNum(rows.length)}</span>
+      ${groups.length>shown.length? `<div class="no-print" style="display:flex;gap:8px;align-items:center;justify-content:center;margin-top:12px;flex-wrap:wrap;">
+        <span class="small muted">معروض ${fmtNum(shown.length)} من ${fmtNum(groups.length)}</span>
         <button class="btn btn-sm" onclick="App.rp_record.limit+=200;App.reReport()">عرض ٢٠٠ كمان</button>
         <button class="btn btn-sm" onclick="App.rp_record.limit=1e9;App.reReport()">عرض الكل</button></div>` : ''}`}
     </div>
@@ -6727,7 +7005,10 @@ service cloud.firestore {
   .field label{display:block;font-size:10.5px;color:var(--muted);}
   .pv{font-weight:700;font-size:12.5px;}
   .ret-no{font-weight:800;color:inherit;text-decoration:none;}
-  .ret-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+  .ret-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:8px;}
+  .ret-route{display:flex;align-items:center;gap:14px;border:1.5px solid #333;border-radius:8px;padding:8px 12px;margin-bottom:8px;}
+  .ret-route b{font-size:15px;}
+  .ret-arr{font-weight:900;font-size:18px;}
   .ret-cell{border:1px solid #ddd;border-radius:6px;padding:6px 8px;}
   .ret-val{margin-top:2px;font-size:12.5px;}
   .pv-view{margin-top:6px;font-size:12px;font-weight:700;color:var(--accent);}
