@@ -660,8 +660,7 @@ html[data-bg="goldlines"] .main::before{background:
   body *{visibility:hidden;}
   #customReportPrintArea, #customReportPrintArea *{visibility:visible;}
   #customReportPrintArea{position:absolute;top:0;right:0;left:0;width:100%;margin:0;}
-  #customReportPrintArea .card{border:1px solid #ddd;box-shadow:none;break-inside:avoid;}
-  #customReportPrintArea .card:has(table){break-inside:auto;}
+  #customReportPrintArea .card{border:1px solid #ddd;box-shadow:none;break-inside:auto;page-break-inside:auto;}
   #customReportPrintArea table.tbl thead{display:table-header-group;}
   #customReportPrintArea table.tbl tr{page-break-inside:avoid;}
   #customReportPrintArea .stat{border:1px solid #ddd;}
@@ -7512,6 +7511,7 @@ service cloud.firestore {
     document.body.appendChild(fr);
     const w = fr.contentWindow, doc = w.document;
     doc.open(); doc.write(html); doc.close();
+    try{ doc.querySelectorAll('.card').forEach(c=>{ c.style.breakInside = 'auto'; c.style.pageBreakInside = 'auto'; }); }catch(e){}
     const fire = ()=>{
       try{ w.focus(); w.print(); }
       catch(e){
@@ -7550,8 +7550,8 @@ service cloud.firestore {
   .ph .company{font-family:'Cairo',Tahoma,sans-serif;font-size:18px;font-weight:800;}
   .ph .title{font-size:14px;color:var(--accent);font-weight:700;}
   .ph .r{font-size:11.5px;color:var(--ink-soft);text-align:left;}
-  .card{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:12px;break-inside:avoid;}
-  .card:has(table),.card:has(.ret-grid){break-inside:auto;}   /* a card with a long list must be allowed to continue on the next page — otherwise it jumps to page 2 and leaves page 1 empty */
+  .card{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:12px;break-inside:auto;page-break-inside:auto;}   /* long content flows on to the next page (never jumps whole to page 2 leaving page 1 empty) */
+  .section-head,h3{break-after:avoid;page-break-after:avoid;}
   .card + .card{margin-top:0;}
   .section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
   .section-head h3{font-size:14px;border-right:4px solid var(--accent);padding-right:8px;}
