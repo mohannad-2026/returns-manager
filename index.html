@@ -367,6 +367,44 @@ table.tbl tbody tr:last-child td{border-bottom:none;}
 .cell-inp{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:5px 8px;font-size:13px;max-width:100%;}
 table.tbl.rf-tbl th,table.tbl.rf-tbl td{padding:8px 7px;}
 table.tbl.ret-lines th,table.tbl.ret-lines td{padding:10px 8px;}
+.rf-form{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--accent-soft);border:1px dashed var(--accent);border-radius:12px;padding:10px 12px;margin-bottom:6px;}
+.rf-form label{font-weight:800;font-size:13px;color:var(--accent);}
+.rf-form input{flex:1;min-width:180px;max-width:280px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:14px;font-weight:700;}
+.rf-form-msg{flex-basis:100%;font-size:13px;}
+.rf-form-msg:empty{display:none;}
+.rf-form-msg.ok{color:var(--good);}.rf-form-msg.bad{color:var(--bad);}
+.fgeo{border-radius:10px;padding:9px 12px;font-size:13px;margin:6px 0 4px;background:var(--surface-2);border:1px solid var(--line);}
+.fgeo.ok{background:var(--good-soft);color:var(--good);border-color:var(--good);}
+.fgeo.bad{background:var(--bad-soft);color:var(--bad);border-color:var(--bad);}
+.fgeo.warn{background:var(--warn-soft);color:var(--warn);border-color:var(--warn);}
+.fgeo .btn{margin-top:6px;}
+.ftl{position:relative;padding-right:26px;margin:4px 0;}
+.ftl:before{content:'';position:absolute;right:9px;top:6px;bottom:6px;width:3px;background:var(--line);border-radius:3px;}
+.ftl-s{position:relative;margin-bottom:12px;}
+.ftl-s b{font-size:13.5px;}
+.ftl-s small{display:block;color:var(--muted);font-size:12px;margin-top:2px;}
+.ftl-d{position:absolute;right:-24px;top:2px;width:16px;height:16px;border-radius:50%;background:var(--accent);border:3px solid var(--surface);box-shadow:0 0 0 2px var(--accent);}
+.ftl-d.y{background:var(--warn);box-shadow:0 0 0 2px var(--warn);}.ftl-d.g{background:var(--good);box-shadow:0 0 0 2px var(--good);}.ftl-d.r{background:var(--bad);box-shadow:0 0 0 2px var(--bad);}
+.ftl-t{float:left;font-weight:800;color:var(--accent);font-size:12.5px;direction:ltr;}
+.ftl-g{display:inline-block;background:var(--accent-soft);border:1px dashed var(--accent);color:var(--accent);border-radius:8px;padding:1px 10px;font-size:12px;font-weight:700;margin:-4px 0 10px;}
+.ftl-bad{color:var(--bad);font-weight:700;}
+.ftl-card{margin:0 0 14px;}
+.fcols{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+@media(max-width:900px){.fcols{grid-template-columns:1fr;}}
+.fcol{background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:10px;min-width:0;}
+.fcol-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;font-size:13.5px;}
+.fcard{display:block;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:7px;font-size:12.5px;color:var(--ink);text-decoration:none;}
+.fcard:hover{border-color:var(--accent);}
+.fcard b[dir]{color:var(--accent);}
+.fcard.late,.fcard.bad{border-color:var(--bad);}.fcard.warn{border-color:var(--warn);}
+#qrScanBox{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;padding:16px;}
+#qrScanBox.open{display:flex;}
+.qs-in{background:var(--surface);color:var(--ink);border-radius:16px;padding:14px;width:100%;max-width:520px;}
+.qs-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+#qsVideo{width:100%;max-height:60vh;background:#000;border-radius:12px;object-fit:cover;}
+.qs-msg{text-align:center;font-size:13px;color:var(--muted);margin:8px 0;}
+.qs-manual{display:flex;gap:8px;}
+.qs-manual input{flex:1;background:var(--surface-2);color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:8px 10px;}
 .cell-inp:focus{outline:none;border-color:var(--accent);}
 .rf-diff{min-height:38px;display:flex;align-items:center;gap:4px;flex-wrap:wrap;}
 .rf-sum{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px;}
@@ -753,6 +791,7 @@ function defaultData(){
     orders: [],
     stock: [],
     activityLog: [],
+    forms: [],
     settings: { companyName:'', logo:'', themeId:'cyan', reasons:null, resolutions:null, expiryAlertDays: DEFAULT_EXPIRY_ALERT_DAYS, passwordPolicy: {...DEFAULT_PASSWORD_POLICY}, emailjs: {serviceId:'', templateId:'', publicKey:''} }
   };
 }
@@ -827,6 +866,113 @@ function ensureReturnNos(d){
   if(max !== (Number(d.settings.lastReturnNo)||0)){ d.settings.lastReturnNo = max; changed = true; }
   return changed;
 }
+/* ---- QR code maker (byte mode, error-correction level M, versions 1–15) — no outside library needed ---- */
+const QRGEN = (function(){
+  const ECC_M = [-1,10,16,26,18,24,16,18,22,22,26,30,22,22,24,24];
+  const BLK_M = [-1,1,1,1,2,2,4,4,4,5,5,5,8,9,9,10];
+  const rawModules = v=>{ let r = (16*v+128)*v+64; if(v>=2){ const na = Math.floor(v/7)+2; r -= (25*na-10)*na-55; if(v>=7) r -= 36; } return r; };
+  const dataCodewords = v=> Math.floor(rawModules(v)/8) - ECC_M[v]*BLK_M[v];
+  const gmul = (x,y)=>{ let z=0; for(let i=7;i>=0;i--){ z = (z<<1) ^ ((z>>>7)*0x11D); z ^= ((y>>>i)&1)*x; } return z & 0xFF; };
+  const rsDivisor = deg=>{ const r = new Array(deg).fill(0); r[deg-1]=1; let root=1;
+    for(let i=0;i<deg;i++){ for(let j=0;j<deg;j++){ r[j]=gmul(r[j],root); if(j+1<deg) r[j]^=r[j+1]; } root=gmul(root,2); } return r; };
+  const rsRemainder = (data, div)=>{ const r = new Array(div.length).fill(0);
+    for(const b of data){ const f = b ^ r.shift(); r.push(0); div.forEach((c,i)=>{ r[i]^=gmul(c,f); }); } return r; };
+  const alignPos = v=>{ if(v===1) return []; const na = Math.floor(v/7)+2; const size = v*4+17;
+    const step = Math.ceil((v*4+4)/(na*2-2))*2; const out=[6]; for(let p=size-7; out.length<na; p-=step) out.splice(1,0,p); return out; };
+  function encode(text){
+    const bytes = Array.from(new TextEncoder().encode(String(text)));
+    let ver = 0;
+    for(let v=1; v<=15; v++){ const cc = v<10?8:16; if(4+cc+bytes.length*8 <= dataCodewords(v)*8){ ver=v; break; } }
+    if(!ver) throw new Error('QR text too long');
+    const cap = dataCodewords(ver)*8, bits = [];
+    const put = (val,len)=>{ for(let i=len-1;i>=0;i--) bits.push((val>>>i)&1); };
+    put(4,4); put(bytes.length, ver<10?8:16); bytes.forEach(b=>put(b,8));
+    put(0, Math.min(4, cap-bits.length)); put(0, (8-bits.length%8)%8);
+    for(let pad=0xEC; bits.length<cap; pad^=0xEC^0x11) put(pad,8);
+    const data = []; for(let i=0;i<bits.length;i+=8){ let b=0; for(let j=0;j<8;j++) b=(b<<1)|bits[i+j]; data.push(b); }
+    // error correction blocks, interleaved
+    const nb = BLK_M[ver], ecl = ECC_M[ver], raw = Math.floor(rawModules(ver)/8);
+    const nShort = nb - raw%nb, shortLen = Math.floor(raw/nb), div = rsDivisor(ecl), blocks = [];
+    for(let i=0,k=0;i<nb;i++){ const len = shortLen-ecl+(i<nShort?0:1); const dat = data.slice(k,k+len); k+=len;
+      const ecc = rsRemainder(dat, div); if(i<nShort) dat.push(0); blocks.push(dat.concat(ecc)); }
+    const cw = []; for(let i=0;i<blocks[0].length;i++) blocks.forEach((b,j)=>{ if(i!==shortLen-ecl || j>=nShort) cw.push(b[i]); });
+    // modules
+    const size = ver*4+17, M = [], F = [];
+    for(let y=0;y<size;y++){ M.push(new Array(size).fill(false)); F.push(new Array(size).fill(false)); }
+    const setF = (x,y,d)=>{ M[y][x]=d; F[y][x]=true; };
+    for(let i=0;i<size;i++){ setF(6,i,i%2===0); setF(i,6,i%2===0); }
+    const finder = (x,y)=>{ for(let dy=-4;dy<=4;dy++) for(let dx=-4;dx<=4;dx++){ const d=Math.max(Math.abs(dx),Math.abs(dy)), xx=x+dx, yy=y+dy;
+      if(xx>=0&&xx<size&&yy>=0&&yy<size) setF(xx,yy, d!==2&&d!==4); } };
+    finder(3,3); finder(size-4,3); finder(3,size-4);
+    const ap = alignPos(ver), na = ap.length;
+    for(let i=0;i<na;i++) for(let j=0;j<na;j++){ if((i===0&&j===0)||(i===0&&j===na-1)||(i===na-1&&j===0)) continue;
+      for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++) setF(ap[i]+dx, ap[j]+dy, Math.max(Math.abs(dx),Math.abs(dy))!==1); }
+    const formatBits = mask=>{ const d = (0<<3)|mask; let r=d; for(let i=0;i<10;i++) r=(r<<1)^((r>>>9)*0x537); const b=((d<<10)|r)^0x5412;
+      const g = i=>((b>>>i)&1)===1;
+      for(let i=0;i<=5;i++) setF(8,i,g(i)); setF(8,7,g(6)); setF(8,8,g(7)); setF(7,8,g(8)); for(let i=9;i<15;i++) setF(14-i,8,g(i));
+      for(let i=0;i<8;i++) setF(size-1-i,8,g(i)); for(let i=8;i<15;i++) setF(8,size-15+i,g(i)); setF(8,size-8,true); };
+    formatBits(0);
+    if(ver>=7){ let r=ver; for(let i=0;i<12;i++) r=(r<<1)^((r>>>11)*0x1F25); const b=(ver<<12)|r;
+      for(let i=0;i<18;i++){ const bit=((b>>>i)&1)===1, a=size-11+i%3, c=Math.floor(i/3); setF(a,c,bit); setF(c,a,bit); } }
+    let bi = 0;
+    for(let right=size-1; right>=1; right-=2){ if(right===6) right=5;
+      for(let vert=0; vert<size; vert++) for(let j=0;j<2;j++){ const x=right-j, up=((right+1)&2)===0, y= up? size-1-vert : vert;
+        if(!F[y][x] && bi<cw.length*8){ M[y][x] = ((cw[bi>>>3]>>>(7-(bi&7)))&1)===1; bi++; } } }
+    const inv = (m,x,y)=>[(x+y)%2===0, y%2===0, x%3===0, (x+y)%3===0, (Math.floor(x/3)+Math.floor(y/2))%2===0, x*y%2+x*y%3===0, (x*y%2+x*y%3)%2===0, ((x+y)%2+x*y%3)%2===0][m];
+    const applyMask = m=>{ for(let y=0;y<size;y++) for(let x=0;x<size;x++) if(!F[y][x] && inv(m,x,y)) M[y][x]=!M[y][x]; };
+    const penalty = ()=>{ let p=0, dark=0;
+      const line = get=>{ let run=1, s=''; for(let i=0;i<size;i++){ const c=get(i); s+=c?'1':'0'; if(i>0){ if(c===get(i-1)){ run++; if(run===5) p+=3; else if(run>5) p++; } else run=1; } }
+        let k=-1; while((k=s.indexOf('1011101',k+1))>=0){ const a=s.slice(Math.max(0,k-4),k), b=s.slice(k+7,k+11);
+          if((a.length===4&&a==='0000')||(b.length===4&&b==='0000')||k<4&&!/1/.test(a)||k+11>size&&!/1/.test(b)) p+=40; } };
+      for(let y=0;y<size;y++) line(i=>M[y][i]);
+      for(let x=0;x<size;x++) line(i=>M[i][x]);
+      for(let y=0;y<size-1;y++) for(let x=0;x<size-1;x++){ const c=M[y][x]; if(c===M[y][x+1]&&c===M[y+1][x]&&c===M[y+1][x+1]) p+=3; }
+      for(let y=0;y<size;y++) for(let x=0;x<size;x++) if(M[y][x]) dark++;
+      const total=size*size; p += Math.floor(Math.abs(dark*20-total*10)/total)*10; return p; };
+    let best=0, bestP=Infinity;
+    for(let m=0;m<8;m++){ applyMask(m); formatBits(m); const p=penalty(); if(p<bestP){ bestP=p; best=m; } applyMask(m); }
+    applyMask(best); formatBits(best);
+    return M;
+  }
+  function svg(text, px, dark){
+    const M = encode(text), n = M.length, q = 4, all = n+q*2;
+    let d = '';
+    for(let y=0;y<n;y++) for(let x=0;x<n;x++) if(M[y][x]) d += `M${x+q} ${y+q}h1v1h-1z`;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${all} ${all}" width="${px}" height="${px}" shape-rendering="crispEdges"><rect width="${all}" height="${all}" fill="#fff"/><path d="${d}" fill="${dark||'#000'}"/></svg>`;
+  }
+  return {encode, svg};
+})();
+
+/* ---- return forms: helpers ---- */
+const FORM_LATE_HOURS_DEFAULT = 24;      // a return still "on the way" after this many hours is flagged late
+const FORM_RADIUS_DEFAULT = 300;         // metres: a scan farther than this from the place's saved spot is flagged
+const FORM_CONDITIONS = ['سليمة','فيها تلف','ناقصة','مفتوحة'];
+const JSQR_URL = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js';
+/* a scanned link (…#f=03-0021), or a typed number, → the form code ("03-0021"); '' if it can't be one */
+function normFormCode(s){
+  let t = String(s==null?'':s).trim();
+  const m = t.match(/[#&?]f=([^&#\s]+)/);
+  if(m){ try{ t = decodeURIComponent(m[1]); }catch(e){ t = m[1]; } }
+  t = t.replace(/[٠-٩]/g, d=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace(/[۰-۹]/g, d=>String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)));
+  t = t.replace(/\s+/g,'').replace(/[–—_\/]/g,'-').toUpperCase();
+  const pm = t.match(/^([0-9A-Z]{1,12})-(\d{1,6})$/);
+  return pm ? pm[1] + '-' + pm[2].padStart(4,'0') : '';
+}
+function geoDist(a, b){
+  const R = 6371000, rad = x=>x*Math.PI/180;
+  const dLat = rad(b.lat-a.lat), dLng = rad(b.lng-a.lng);
+  const h = Math.sin(dLat/2)**2 + Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLng/2)**2;
+  return 2*R*Math.asin(Math.min(1, Math.sqrt(h)));
+}
+function fmtDist(m){ m = Number(m)||0; return m < 1000 ? `${fmtNum(Math.round(m))} متر` : `${fmtNum(Math.round(m/100)/10)} كم`; }
+function fmtDur(ms){
+  const mins = Math.max(0, Math.round((Number(ms)||0)/60000));
+  if(mins < 60) return `${fmtNum(mins)} د`;
+  const h = Math.floor(mins/60), mm = mins%60;
+  if(h < 24) return mm ? `${fmtNum(h)} س ${fmtNum(mm)} د` : `${fmtNum(h)} س`;
+  const dd = Math.floor(h/24), hh = h%24;
+  return hh ? `${fmtNum(dd)} يوم ${fmtNum(hh)} س` : `${fmtNum(dd)} يوم`;
+}
 /* a return line carries two quantities: sentQty = what the store wrote on its return form, qty = what the
    warehouse really received (qty is what the stock and every older report count). Lines saved before this
    existed have no sentQty → the two are equal. resp = who is to blame, receivedBy = who took delivery. */
@@ -849,11 +995,13 @@ function retNoMatches(r, q){
   if(!q) return true;
   const qn = q.replace(/[٠-٩]/g, dg=>String('٠١٢٣٤٥٦٧٨٩'.indexOf(dg)));
   if(r.no && /^\d+$/.test(qn) && (String(r.no).includes(String(parseInt(qn,10))) || fmtRetNo(r).includes(qn))) return true;
+  if(r.formNo && String(r.formNo).toLowerCase().includes(qn)) return true;
   return (r.transferNo||'').toLowerCase().includes(q) || (r.transferNo||'').toLowerCase().includes(qn);
 }
 
 function migrateData(d){
   if(!d.settings) d.settings = { companyName:'', logo:'' };
+  if(!Array.isArray(d.forms)) d.forms = [];
   // migrate: settings gain a theme choice, customizable reason/resolution
   // lists, expiry-alert threshold and password policy — all optional, all
   // fall back to their DEFAULT_* constant when unset
@@ -919,7 +1067,7 @@ function loadData(){
      appdata/<list>__<n>. Only pieces that actually changed are re-written.
    • daily server backups: appdata/bk_<date>__<n> + an index doc, last 14 days.
 ===================================================================== */
-const SPLIT_KEYS = ['returns','orders','stock','items','activityLog'];
+const SPLIT_KEYS = ['returns','orders','stock','items','activityLog','forms'];
 const CHUNK_BYTES = 450*1024;
 const BACKUP_KEEP_DAYS = 30;        // one snapshot per day for 30 days
 const BACKUP_KEEP_HOURS = 48;       // plus every hourly snapshot from the last 48 hours
@@ -1246,6 +1394,11 @@ const PERM_SCHEMA = [
     {k:'edit', label:'تعديل المرتجعات', def:true},
     {k:'delete', label:'حذف المرتجعات', def:true},
   ]},
+  {g:'forms', label:'🔳 نماذج المرتجع (QR)', keys:[
+    {k:'print', label:'يطبع نماذج المرتجع ويتابع اللي في السكة', def:false},
+    {k:'out', label:'يصوّر خروج المرتجع من محله', def:false},
+    {k:'in', label:'يصوّر وصول المرتجع لمستودعه', def:false},
+  ]},
   {g:'orders', label:'▤ الطلبيات', keys:[
     {k:'view', label:'يشوف صفحة الطلبيات', def:true},
     {k:'add', label:'تسجيل طلبية يدوي', def:true},
@@ -1295,6 +1448,7 @@ const PERM_SCHEMA = [
     {k:'expiry', label:'تقرير الصلاحية', def:true},
     {k:'costs', label:'التكاليف والخسائر (محتاج كمان صلاحية المالية)', def:true},
     {k:'diffs', label:'الفروقات والمسؤولية (كمية النموذج مقابل المستلم)', def:false},
+    {k:'forms', label:'نماذج المرتجع والتتبع', def:false},
   ]},
   {g:'export', label:'⬇ التصدير', keys:[
     {k:'pdf', label:'تحميل PDF', def:true},
@@ -1514,6 +1668,8 @@ const App = {
 
   init(){
     this.applyTheme();
+    this.pendingForm = this.hashFormCode();
+    window.addEventListener('hashchange', ()=>{ const c = App.hashFormCode(); if(c){ App.pendingForm = c; App.tryPendingForm(); } });
     if(window.emailjs && this.isEmailJSConfigured()){
       try{ emailjs.init({publicKey: this.db.settings.emailjs.publicKey}); }catch(e){}
     }
@@ -1566,6 +1722,7 @@ const App = {
     this.renderBrand();
     this.buildNav();
     this.go('dashboard');
+    this.tryPendingForm();
   },
 
   /* ---------------- EMAIL VERIFICATION (EmailJS) ----------------
@@ -2429,6 +2586,7 @@ const App = {
     const tableView = (head, rows)=>`<details class="viz-table"><summary>عرض كجدول</summary><div class="tbl-wrap"><table class="tbl"><thead><tr>${head.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div></details>`;
 
     return `
+      ${this.formsBoardHtml()}
       ${emptySetup ? `
       <div class="card" style="border-color:var(--accent-soft);background:var(--accent-soft);margin-bottom:14px;">
         <b>لبدء الاستخدام:</b> أضف أولاً <a href="#" onclick="App.go('stores');return false;">المحلات</a> و<a href="#" onclick="App.go('items');return false;">الأصناف</a>${all?` و<a href="#" onclick="App.go('warehouses');return false;">المستودعات</a>`:''}، ثم ابدأ تسجيل <a href="#" onclick="App.go('returns');return false;">المرتجعات</a>.
@@ -2534,6 +2692,7 @@ const App = {
       g.over = r3(g.lines.reduce((a,l)=>{ const x = retDiff(l); return a+(x<0?-x:0); }, 0));
       g.hasDiff = g.short>0 || g.over>0;
       g.recvBy = (g.lines.find(l=>l.receivedBy)||{}).receivedBy || '';
+      g.formNo = (g.lines.find(l=>l.formNo)||{}).formNo || '';
     });
     out.sort((a,b)=>retLineCmp(b.last, a.last) || (b.no||0)-(a.no||0));
     return out;
@@ -2595,6 +2754,589 @@ const App = {
   receiverNames(){
     return Array.from(new Set(this.db.returns.map(r=>(r.receivedBy||'').trim()).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'ar'));
   },
+  /* =====================================================================
+     RETURN FORMS WITH A QR CODE
+     • the owner prints numbered return forms per store (code = store prefix + serial, e.g. 03-0021);
+       each carries a QR that opens this app at  #f=<code>
+     • the store scans it when the goods leave ("out"), the warehouse when they arrive ("in");
+       each scan stamps time, who, and — when the phone allows — where (vs. the place's saved spot)
+     • the owner records the return from the paper as before; the form number links the two,
+       blocks recording the same form twice, and shows forms that never arrived
+  ===================================================================== */
+  formByCode(code){
+    const c = normFormCode(code), fs = this.db.forms||[];
+    if(!c) return null;
+    const hit = fs.find(f=>f.id===c); if(hit) return hit;
+    const m = c.match(/^([0-9A-Z]+)-(\d+)$/); if(!m) return null;          // "3-21" → 03-0021
+    const n = parseInt(m[2],10), num = /^\d+$/.test(m[1]) ? parseInt(m[1],10) : null;
+    return fs.find(f=>{ const x = f.id.match(/^([0-9A-Z]+)-(\d+)$/); return x && parseInt(x[2],10)===n && (x[1]===m[1] || (num!=null && /^\d+$/.test(x[1]) && parseInt(x[1],10)===num)); }) || null;
+  },
+  formUrl(code){ return location.href.split('#')[0] + '#f=' + encodeURIComponent(code); },
+  formNum(f){ const m = String(f.id||'').match(/(\d+)$/); return m ? parseInt(m[1],10) : 0; },
+  formLateHours(){ const h = Number((this.db.settings||{}).formLateHours); return h>0 ? h : FORM_LATE_HOURS_DEFAULT; },
+  formRadius(){ const r = Number((this.db.settings||{}).formRadius); return r>0 ? r : FORM_RADIUS_DEFAULT; },
+  formReturn(f){ return f && f.gid ? this.retGroup(f.gid) || (this.hasGid(f.gid) ? this.retGroupsOf(this.db.returns.filter(r=>r.gid===f.gid))[0] : null) : null; },
+  formState(f){
+    if(f.cancelled) return 'cancelled';
+    if(f.gid && this.hasGid(f.gid)) return 'recorded';
+    if(f.in) return 'arrived';
+    if(f.out) return 'transit';
+    return 'printed';
+  },
+  formStateHtml(f){
+    const s = this.formState(f);
+    if(s==='recorded') return '<span class="tag good">✔ اتسجّل</span>';
+    if(s==='arrived') return '<span class="tag info">📦 وصل — مستني تسجيلك</span>';
+    if(s==='transit') return this.formLate(f) ? `<span class="tag bad">🚚 متأخر في الطريق ${esc(fmtDur(Date.now()-f.out.ts))}</span>` : '<span class="tag warn">🚚 في الطريق</span>';
+    if(s==='cancelled') return '<span class="tag">🚫 اتلغى</span>';
+    return '<span class="tag">🖨 اتطبع</span>';
+  },
+  formLate(f){ return !!(f.out && f.out.ts && !f.in && !f.cancelled && !(f.gid && this.hasGid(f.gid)) && (Date.now()-f.out.ts) > this.formLateHours()*3600000); },
+  formFlags(f){
+    const R = this.formRadius(), out = [];
+    if(f.out && f.out.d!=null && f.out.d>R) out.push(`الخروج اتصوّر على بعد ${fmtDist(f.out.d)} من المحل`);
+    if(f.in && f.in.d!=null && f.in.d>R) out.push(`الوصول اتصوّر على بعد ${fmtDist(f.in.d)} من المستودع`);
+    if(f.out && f.in && Number(f.out.n)>0 && f.in.n!=null && f.in.n!=='' && Number(f.in.n)<Number(f.out.n)) out.push(`وصل ${fmtNum(f.in.n)} كرتونة/طرد من ${fmtNum(f.out.n)}`);
+    if(f.in && f.in.c && f.in.c!=='سليمة') out.push(`حالة البضاعة وقت الوصول: ${f.in.c}`);
+    return out;
+  },
+  /* forms of a store that were skipped: a later form of the same store was already scanned or recorded */
+  formsMissing(storeId){
+    const fs = (this.db.forms||[]).filter(f=>!storeId || f.storeId===storeId);
+    const by = new Map();
+    fs.forEach(f=>{ if(!by.has(f.storeId)) by.set(f.storeId, []); by.get(f.storeId).push(f); });
+    const out = [];
+    by.forEach(list=>{
+      const seen = list.filter(f=>f.out || f.in || (f.gid && this.hasGid(f.gid))).map(f=>this.formNum(f));
+      if(!seen.length) return;
+      const top = Math.max(...seen);
+      list.forEach(f=>{ if(this.formNum(f)<top && this.formState(f)==='printed') out.push(f); });
+    });
+    return out.sort((a,b)=>a.id.localeCompare(b.id));
+  },
+  hasGid(gid){
+    const rs = this.db.returns, c = this._gidCache;
+    if(!c || c.ref!==rs || c.n!==rs.length){ this._gidCache = {ref: rs, n: rs.length, set: new Set(rs.map(r=>r.gid).filter(Boolean))}; }
+    return !!gid && this._gidCache.set.has(gid);
+  },
+  formTimelineCard(code){
+    const f = this.formByCode(code);
+    return f ? `<div class="card ftl-card"><div class="small muted" style="margin-bottom:6px;">🔳 رحلة نموذج المرتجع <b dir="ltr">${esc(f.id)}</b></div>${this.formTimelineHtml(f)}</div>` : '';
+  },
+  formsInUse(){ return (this.db.forms||[]).length>0; },
+  formPlaceName(kind, id){ return kind==='store' ? (this.storeName(id)||'المحل') : (this.whName(id)||'المستودع'); },
+  formPlace(kind, id){ return (kind==='store' ? this.db.stores : this.db.warehouses).find(x=>x.id===id) || null; },
+
+  /* ---------- printing ---------- */
+  formPrefixFor(st){
+    if(st.formPrefix) return st.formPrefix;
+    const base = String(st.code||'').replace(/[^0-9A-Za-z]/g,'').toUpperCase() || ('S'+(this.db.stores.indexOf(st)+1));
+    const used = new Set(this.db.stores.filter(s=>s!==st && s.formPrefix).map(s=>s.formPrefix));
+    let p = base, k = 0;
+    while(used.has(p)) p = base + String.fromCharCode(65 + (k++));
+    return p;
+  },
+  formsNextRange(storeId, count){
+    const st = this.db.stores.find(s=>s.id===storeId); if(!st) return null;
+    const prefix = this.formPrefixFor(st);
+    const nums = (this.db.forms||[]).filter(f=>f.id.indexOf(prefix+'-')===0).map(f=>this.formNum(f));
+    const start = Math.max(Number(st.lastFormNo||0), nums.length? Math.max(...nums) : 0) + 1;
+    const code = n=> prefix + '-' + String(n).padStart(4,'0');
+    return {prefix, start, end: start+count-1, first: code(start), last: code(start+count-1), code};
+  },
+  openFormsPrint(){
+    if(!this.can('forms.print')) return;
+    const d = this.db;
+    if(!d.stores.length){ this.notify('أضف المحلات الأول.'); return; }
+    const defStore = d.stores[0].id;
+    const batches = new Map();
+    (d.forms||[]).forEach(f=>{ if(!batches.has(f.batch)) batches.set(f.batch, []); batches.get(f.batch).push(f); });
+    const missing = new Set(this.formsMissing().map(f=>f.id));
+    const rows = Array.from(batches.values()).map(list=>{
+      list.sort((a,b)=>this.formNum(a)-this.formNum(b));
+      const f0 = list[0], fN = list[list.length-1];
+      const rec = list.filter(f=>this.formState(f)==='recorded').length;
+      const moving = list.filter(f=>['transit','arrived'].includes(this.formState(f))).length;
+      const miss = list.filter(f=>missing.has(f.id));
+      return {f0, fN, list, rec, moving, miss};
+    }).sort((a,b)=>String(b.f0.printedAt||'').localeCompare(String(a.f0.printedAt||'')) || b.f0.id.localeCompare(a.f0.id));
+    const placeRow = (kind, x)=>`<tr><td>${kind==='store'?'<span class="ret-from">':'<span class="ret-to">'}${esc(x.name)}</span></td><td>${x.loc? `<span class="tag good">✔ متسجّل</span> <span class="small muted">${esc(x.loc.by||'')} ${esc(x.loc.at||'')}</span>` : '<span class="tag">لسه</span>'}</td>
+      <td>${x.loc? `<button class="btn btn-sm" onclick="App.resetPlaceLoc('${kind}','${esc(x.id)}')">مسح الموقع</button>` : ''}</td></tr>`;
+    this.openModal(`
+      <button class="modal-close" onclick="App.closeModal()">✕</button>
+      <h3>🔳 نماذج المرتجع بالـ QR</h3>
+      <div class="rf-sec">طباعة نماذج جديدة</div>
+      <div class="rf-row" style="grid-template-columns:1.3fr 1.3fr .6fr;">
+        <div class="field"><label>المحل</label><select id="fp_store" onchange="App.fpStoreChanged()">${d.stores.map(s=>`<option value="${esc(s.id)}" ${s.id===defStore?'selected':''}>${s.code?'['+esc(s.code)+'] ':''}${esc(s.name)}</option>`).join('')}</select></div>
+        <div class="field"><label>يرجّع على مستودع</label><select id="fp_wh" onchange="App.fpPreview()"><option value="">— المستودع يتكتب على الورقة —</option>${d.warehouses.map(w=>`<option value="${esc(w.id)}" ${this.storeDefaultWarehouse(defStore)===w.id?'selected':''}>${esc(w.name)}</option>`).join('')}</select></div>
+        <div class="field"><label>عدد النماذج</label><input type="number" id="fp_count" min="1" max="200" value="20" oninput="App.fpPreview()"></div>
+      </div>
+      <div class="rf-auto" id="fp_range" style="margin-bottom:10px;"></div>
+      <button class="btn btn-accent" id="fp_go" onclick="App.printNewForms()">🖨 طباعة النماذج (نموذجين في الورقة)</button>
+      <div class="small muted" style="margin-top:6px;">كل نموذج عليه رقم مسلسل خاص بالمحل والـ QR. المحل يصوّره وقت خروج البضاعة، والمستودع وقت وصولها، وانت تسجّل منه المرتجع.</div>
+      <div class="rf-sec">دفعات اتطبعت</div>
+      ${rows.length? `<div class="tbl-wrap" style="max-height:260px;overflow:auto;"><table class="tbl ret-lines"><thead><tr><th>المحل</th><th>الأرقام</th><th>اتطبعت</th><th>اتسجّل</th><th>في السكة</th><th>ما وصلتش</th><th></th></tr></thead><tbody>
+        ${rows.map(r=>`<tr><td class="ret-from">${esc(this.storeName(r.f0.storeId)||'—')}</td><td dir="ltr" style="text-align:right">${esc(r.f0.id)} → ${esc(r.fN.id)}</td><td>${esc(r.f0.printedAt||'')}</td>
+          <td><b>${fmtNum(r.rec)}</b> من ${fmtNum(r.list.length)}</td><td>${r.moving? fmtNum(r.moving) : '—'}</td>
+          <td>${r.miss.length? r.miss.slice(0,6).map(f=>`<a href="#" class="tag bad" dir="ltr" onclick="App.openFormStatus('${esc(f.id)}');return false;">${esc(f.id)}</a>`).join(' ') + (r.miss.length>6? ` +${fmtNum(r.miss.length-6)}`:'') : '<span class="tag good">لا يوجد</span>'}</td>
+          <td><button class="btn btn-sm" onclick="App.printForms(${esc(JSON.stringify(r.list.map(f=>f.id)))})">🖨 إعادة طباعة</button></td></tr>`).join('')}
+      </tbody></table></div>` : '<div class="empty small">لسه ما اتطبعش نماذج.</div>'}
+      <div class="rf-sec">مواقع المحلات والمستودعات (لختم المكان)</div>
+      <div class="small muted" style="margin-bottom:6px;">كل موظف بيسجّل موقع مكانه مرة واحدة من موبايله أول مرة يصوّر نموذج. لو اتسجّل غلط امسحه ويتسجّل من جديد.</div>
+      <div class="tbl-wrap" style="max-height:200px;overflow:auto;"><table class="tbl ret-lines"><tbody>${d.stores.map(s=>placeRow('store', s)).join('')}${d.warehouses.map(w=>placeRow('warehouse', w)).join('')}</tbody></table></div>
+      <div class="modal-actions"><button class="btn" onclick="App.closeModal()">إغلاق</button></div>`, 980);
+    this.fpPreview();
+  },
+  fpStoreChanged(){
+    const s = document.getElementById('fp_store').value, wh = document.getElementById('fp_wh');
+    const def = this.storeDefaultWarehouse(s); if(def && wh) wh.value = def;
+    this.fpPreview();
+  },
+  fpPreview(){
+    const s = document.getElementById('fp_store'), c = document.getElementById('fp_count'), box = document.getElementById('fp_range');
+    if(!s || !c || !box) return;
+    const n = Math.max(1, Math.min(200, parseInt(c.value,10)||0));
+    const r = this.formsNextRange(s.value, n);
+    box.innerHTML = r ? `الأرقام هتبقى من <b dir="ltr">${esc(r.first)}</b> لحد <b dir="ltr">${esc(r.last)}</b> — ${fmtNum(n)} نموذج` : '';
+  },
+  printNewForms(){
+    if(!this.can('forms.print')) return;
+    const storeId = document.getElementById('fp_store').value, whId = document.getElementById('fp_wh').value || '';
+    const n = Math.max(1, Math.min(200, parseInt(document.getElementById('fp_count').value,10)||0));
+    const st = this.db.stores.find(s=>s.id===storeId); if(!st) return;
+    const r = this.formsNextRange(storeId, n);
+    if(!this.db.forms) this.db.forms = [];
+    const u = this.currentUser(), by = (u && (u.name||u.username)) || '';
+    const batch = 'b_'+uid(), date = todayStr(), ids = [];
+    for(let k=r.start; k<=r.end; k++){
+      const id = r.code(k);
+      if(this.db.forms.some(f=>f.id===id)) continue;
+      this.db.forms.push({id, storeId, warehouseId: whId, batch, printedAt: date, printedBy: by});
+      ids.push(id);
+    }
+    st.formPrefix = r.prefix; st.lastFormNo = r.end;
+    this.logActivity(`طبع ${fmtNum(ids.length)} نموذج مرتجع لـ ${st.name} (${r.first} → ${r.last})`);
+    this.refresh();
+    this.printForms(ids);
+    this.openFormsPrint();
+  },
+  printForms(ids){
+    const list = ids.map(id=>this.formByCode(id)).filter(Boolean);
+    if(!list.length) return;
+    this.printHtmlDoc(this.formsPrintDoc(list));
+  },
+  formsPrintDoc(list){
+    const S = this.db.settings || {}, company = S.companyName || '';
+    const one = f=>{
+      const wh = f.warehouseId ? this.whName(f.warehouseId) : '';
+      return `<div class="fm">
+        <div class="fh"><div class="fl"><div class="tt">نموذج مرتجع</div>${company?`<div class="co">${esc(company)}</div>`:''}
+          <div class="hint">صوّر الكود بكاميرا الموبايل: <b>المحل</b> وقت خروج البضاعة • <b>المستودع</b> وقت وصولها</div></div>
+          <div class="fr"><div class="no"><span>رقم النموذج</span><b dir="ltr">${esc(f.id)}</b></div>${QRGEN.svg(this.formUrl(f.id), 112)}</div></div>
+        <div class="pre"><div><span>من المحل</span><b>${esc(this.storeName(f.storeId)||'')}</b></div><div><span>إلى المستودع</span><b>${wh? esc(wh) : '&nbsp;'}</b></div><div><span>التاريخ</span><b>&nbsp;</b></div><div><span>عدد الكراتين / الطرود</span><b>&nbsp;</b></div></div>
+        <table><thead><tr><th style="width:7mm">#</th><th>اسم الصنف / الكود</th><th style="width:20mm">الكمية</th><th style="width:20mm">الوحدة</th><th style="width:36mm">السبب</th></tr></thead>
+          <tbody>${Array.from({length:8},(x,i)=>`<tr><td>${i+1}</td><td></td><td></td><td></td><td></td></tr>`).join('')}</tbody></table>
+        <div class="sg"><div>توقيع المحل</div><div>استلمها في المستودع (الاسم + التوقيع)</div><div>الكمية اللي وصلت فعلاً</div></div>
+      </div>`;
+    };
+    const pages = [];
+    for(let i=0;i<list.length;i+=2) pages.push(`<div class="pg">${one(list[i])}${list[i+1]? '<div class="cut">✂ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -</div>'+one(list[i+1]) : ''}</div>`);
+    return `<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><title>نماذج مرتجع ${esc(list[0].id)}</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@700;800&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  @page{size:A4 portrait;margin:8mm;}
+  *{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  body{font-family:'Tajawal',Tahoma,Arial,sans-serif;margin:0;color:#111;font-size:12px;}
+  .pg{height:279mm;display:flex;flex-direction:column;justify-content:space-between;page-break-after:always;break-after:page;}
+  .pg:last-child{page-break-after:auto;break-after:auto;}
+  .fm{border:1.5px solid #0E7490;border-radius:4mm;padding:4mm 5mm;height:133mm;display:flex;flex-direction:column;}
+  .fh{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #0E7490;padding-bottom:2mm;margin-bottom:2.5mm;}
+  .tt{font-family:'Cairo',Tahoma,sans-serif;font-size:21px;font-weight:800;}
+  .co{font-size:12px;color:#444;}
+  .hint{font-size:10.5px;color:#0E7490;margin-top:1.5mm;max-width:95mm;line-height:1.5;}
+  .fr{display:flex;align-items:center;gap:3mm;}
+  .no{text-align:left;}.no span{display:block;font-size:10.5px;color:#555;}.no b{font-size:22px;color:#0E7490;font-family:'Cairo',Tahoma,sans-serif;letter-spacing:.5px;}
+  .fr svg{width:29mm;height:29mm;}
+  .pre{display:grid;grid-template-columns:1.2fr 1.2fr .8fr .9fr;gap:2mm;margin-bottom:2.5mm;}
+  .pre div{border:1px solid #bbb;border-radius:2mm;padding:1.2mm 2.5mm;min-height:11mm;}.pre span{display:block;font-size:9.5px;color:#555;}.pre b{font-size:13px;}
+  table{width:100%;border-collapse:collapse;flex:1;}
+  th{background:#e6f3f6;border:1px solid #999;padding:1.2mm;font-size:10.5px;text-align:right;}
+  td{border:1px solid #999;height:6.6mm;padding:0 1.5mm;font-size:10.5px;}
+  .sg{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4mm;margin-top:7mm;font-size:10px;color:#444;}
+  .sg div{border-top:1px solid #555;padding-top:1mm;}
+  .cut{text-align:center;color:#999;font-size:10px;letter-spacing:1px;overflow:hidden;white-space:nowrap;}
+</style></head><body>${pages.join('')}</body></html>`;
+  },
+
+  /* ---------- places' saved spots ---------- */
+  setPlaceLoc(kind, id){
+    const g = this._geo, p = this.formPlace(kind, id);
+    if(!p || !g || g.state!=='ok') return;
+    const u = this.currentUser();
+    if(!(this.isAdmin() || (kind==='store' ? u.storeId===id : u.warehouseId===id))) return;
+    p.loc = {lat: +g.lat.toFixed(6), lng: +g.lng.toFixed(6), acc: Math.round(g.acc||0), at: todayStr(), by: (u.name||u.username||'')};
+    this.logActivity(`سجّل موقع ${kind==='store'?'المحل':'المستودع'} «${p.name}» لختم المكان`);
+    saveData(this.db);
+    this.formGeoRefresh();
+  },
+  resetPlaceLoc(kind, id){
+    if(!this.can('forms.print')) return;
+    const p = this.formPlace(kind, id); if(!p) return;
+    this.confirmAction(`تمسح الموقع المسجّل لـ «${p.name}»؟ هيتسجّل من جديد أول مرة حد من هناك يصوّر نموذج.`, ()=>{
+      delete p.loc; this.logActivity(`مسح موقع «${p.name}» المسجّل`); this.refresh(); this.openFormsPrint();
+    }, 'مسح الموقع');
+  },
+  formGeoStart(kind, id){
+    this._geo = {state:'wait', kind, id};
+    this.formGeoRefresh();
+    if(!(navigator.geolocation && navigator.geolocation.getCurrentPosition)){ this._geo.state = 'fail'; this.formGeoRefresh(); return; }
+    const mine = this._geo;
+    navigator.geolocation.getCurrentPosition(pos=>{
+      if(this._geo!==mine) return;
+      Object.assign(mine, {state:'ok', lat:pos.coords.latitude, lng:pos.coords.longitude, acc:pos.coords.accuracy});
+      this.formGeoRefresh();
+    }, ()=>{ if(this._geo===mine){ mine.state = 'fail'; this.formGeoRefresh(); } }, {enableHighAccuracy:true, timeout:12000, maximumAge:60000});
+  },
+  formGeoRefresh(){
+    const box = document.getElementById('fgeo'), g = this._geo;
+    if(!box || !g) return;
+    const p = this.formPlace(g.kind, g.id), name = this.formPlaceName(g.kind, g.id), u = this.currentUser();
+    if(g.state==='wait'){ box.className = 'fgeo'; box.innerHTML = '📍 جاري تحديد موقعك…'; return; }
+    if(g.state==='fail'){ box.className = 'fgeo warn'; box.innerHTML = '📍 مقدرناش نحدد موقعك (اسمح بالموقع من المتصفح) — التسجيل هيتم من غير ختم المكان'; return; }
+    if(p && p.loc){
+      const dist = geoDist(g, p.loc);
+      if(dist <= this.formRadius()){ box.className = 'fgeo ok'; box.innerHTML = `📍 <b>ختم المكان:</b> انت جوه ${esc(name)} <span class="small">(على بعد ${fmtDist(dist)})</span>`; }
+      else { box.className = 'fgeo bad'; box.innerHTML = `📍 <b>انت بعيد عن ${esc(name)}</b> — على بعد ${fmtDist(dist)}. لو كملت، هيتعلّم عليه للمراجعة.`; }
+      return;
+    }
+    const mineP = this.isAdmin() || (g.kind==='store' ? u.storeId===g.id : u.warehouseId===g.id);
+    box.className = 'fgeo warn';
+    box.innerHTML = `📍 موقع ${esc(name)} لسه مش متسجّل في البرنامج.` + (mineP ? ` <button type="button" class="btn btn-sm" id="fgeoSet" onclick="App.setPlaceLoc('${g.kind}','${esc(g.id)}')">سجّل موقع ${esc(name)} هنا (مرة واحدة)</button>` : '');
+  },
+  formGeoStamp(ev){
+    const g = this._geo;
+    if(!g || g.state!=='ok') return ev;
+    ev.lat = +g.lat.toFixed(6); ev.lng = +g.lng.toFixed(6); ev.acc = Math.round(g.acc||0);
+    const p = this.formPlace(g.kind, g.id);
+    if(p && p.loc) ev.d = Math.round(geoDist(g, p.loc));
+    return ev;
+  },
+
+  /* ---------- opening a scanned code ---------- */
+  hashFormCode(){ const m = String(location.hash||'').match(/[#&]f=([^&]+)/); if(!m) return ''; try{ return normFormCode(decodeURIComponent(m[1])); }catch(e){ return normFormCode(m[1]); } },
+  tryPendingForm(){
+    if(!this.pendingForm || !this.session || !window.__fsReady) return;
+    const c = this.pendingForm; this.pendingForm = null;
+    try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
+    this.openFormScan(c);
+  },
+  canFormOut(f){ const u = this.currentUser(); return this.can('forms.out') && (this.isAdmin() || !u.storeId || u.storeId===f.storeId); },
+  canFormIn(f){ const u = this.currentUser(); return this.can('forms.in') && (this.isAdmin() || !u.warehouseId || !f.warehouseId || u.warehouseId===f.warehouseId); },
+  openFormScan(code){
+    const f = this.formByCode(code);
+    if(!f){ this.notify(`الكود «${normFormCode(code)||code}» مش لنموذج مرتجع متسجّل في البرنامج.`); return; }
+    if(this.isAdmin() || this.can('forms.print')) return this.openFormStatus(f.id);
+    if(f.cancelled) return this.openFormStatus(f.id);
+    const done = this.formState(f)==='recorded';
+    if(!done && !f.out && !f.in && this.canFormOut(f)) return this.openFormOut(f.id);
+    if(!done && !f.in && this.canFormIn(f)) return this.openFormIn(f.id);
+    if(!this.canFormOut(f) && !this.canFormIn(f)){ this.notify('النموذج ده مش تبع محلك ولا مستودعك، أو حسابك مش مسموحله يصوّر نماذج المرتجع — كلّم المدير.'); return; }
+    this.openFormStatus(f.id);
+  },
+  formHeadHtml(f){
+    return `<div class="ret-route" style="margin-bottom:10px;">
+      <div><div class="small muted">من (المحل)</div><b class="ret-from">${esc(this.storeName(f.storeId)||'—')}</b></div>
+      <div class="ret-arr big">←</div>
+      <div><div class="small muted">إلى (المستودع)</div><b class="ret-to">${f.warehouseId? esc(this.whName(f.warehouseId)) : '—'}</b></div>
+      <div style="flex:1"></div><div>${this.formStateHtml(f)}</div></div>`;
+  },
+  formDrivers(){ return Array.from(new Set((this.db.forms||[]).map(f=>f.out && (f.out.drv||'').trim()).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'ar')); },
+  openFormOut(code){
+    const f = this.formByCode(code); if(!f) return;
+    if(!this.canFormOut(f)){ this.notify('مش مسموح لحسابك يصوّر خروج النموذج ده.'); return; }
+    this.openModal(`
+      <button class="modal-close" onclick="App.closeModal()">✕</button>
+      <h3>🚚 خروج مرتجع <span dir="ltr">${esc(f.id)}</span></h3>
+      ${this.formHeadHtml(f)}
+      <div class="field"><label>اسم السواق / اللي هيوصّلها</label><input type="text" id="fo_drv" list="fo_drvs" placeholder="اختياري"><datalist id="fo_drvs">${this.formDrivers().map(n=>`<option value="${esc(n)}">`).join('')}</datalist></div>
+      <div class="field"><label>رقم موبايله</label><input type="tel" id="fo_ph" dir="ltr" placeholder="اختياري"></div>
+      <div class="field"><label>عدد الكراتين / الطرود</label><input type="number" id="fo_n" min="0" placeholder="اختياري"></div>
+      <div id="fgeo" class="fgeo"></div>
+      <div class="modal-actions"><button class="btn btn-accent" id="fo_go" onclick="App.saveFormOut('${esc(f.id)}')">🚚 المرتجع طلع</button><button class="btn" onclick="App.closeModal()">إلغاء</button></div>
+      <div class="small muted">الوقت بيتسجّل لوحده. الأصناف بتفضل على الورقة زي ما هي.</div>`, 560);
+    this.formGeoStart('store', f.storeId);
+    const dr = document.getElementById('fo_drv'); if(dr) dr.addEventListener('change', ()=>{ const last = (this.db.forms||[]).slice().reverse().find(x=>x.out && x.out.drv===dr.value && x.out.ph); const ph = document.getElementById('fo_ph'); if(last && ph && !ph.value) ph.value = last.out.ph; });
+  },
+  saveFormOut(code){
+    const f = this.formByCode(code); if(!f || !this.canFormOut(f)) return;
+    if(f.out){ this.notify(`خروج النموذج ده اتسجّل قبل كده (${f.out.at}).`); this.closeModal(); return; }
+    const u = this.currentUser(), nTxt = document.getElementById('fo_n').value;
+    const ev = this.formGeoStamp({ts: Date.now(), at: todayStr()+' '+nowTime(), by: (u.name||u.username||''), uid: u.id,
+      drv: document.getElementById('fo_drv').value.trim(), ph: document.getElementById('fo_ph').value.trim()});
+    if(nTxt!=='' && Number(nTxt)>=0) ev.n = Number(nTxt);
+    f.out = ev;
+    this.logActivity(`صوّر خروج نموذج المرتجع ${f.id} من ${this.storeName(f.storeId)||''}${ev.drv? ' — السواق '+ev.drv:''}`);
+    this.closeModal(); this.refresh();
+    this.notify(`✅ اتسجّل خروج المرتجع ${f.id} — ${ev.at}`);
+  },
+  openFormIn(code){
+    const f = this.formByCode(code); if(!f) return;
+    if(!this.canFormIn(f)){ this.notify('مش مسموح لحسابك يصوّر وصول النموذج ده.'); return; }
+    const u = this.currentUser();
+    const whId = f.warehouseId || u.warehouseId || '';
+    this.openModal(`
+      <button class="modal-close" onclick="App.closeModal()">✕</button>
+      <h3>📦 وصول مرتجع <span dir="ltr">${esc(f.id)}</span></h3>
+      ${this.formHeadHtml(f)}
+      ${f.out? `<div class="help-box" style="margin-bottom:10px;">طلع من ${esc(this.storeName(f.storeId)||'المحل')} ${esc(f.out.at)}${f.out.drv? ' — السواق '+esc(f.out.drv):''}${f.out.n!=null? ' — '+fmtNum(f.out.n)+' كرتونة/طرد':''}</div>` : `<div class="help-box" style="margin-bottom:10px;border-color:var(--warn);">المحل ما صوّرش خروج النموذج ده.</div>`}
+      ${!f.warehouseId && !u.warehouseId ? `<div class="field"><label>المستودع</label><select id="fi_wh">${this.db.warehouses.map(w=>`<option value="${esc(w.id)}">${esc(w.name)}</option>`).join('')}</select></div>` : ''}
+      <div class="field"><label>عدد الكراتين / الطرود اللي وصلت</label><input type="number" id="fi_n" min="0" placeholder="${f.out && f.out.n!=null? 'طلع منه '+esc(f.out.n) : 'اختياري'}"></div>
+      <div class="field"><label>حالة البضاعة</label><select id="fi_c">${FORM_CONDITIONS.map(c=>`<option>${esc(c)}</option>`).join('')}</select></div>
+      <div class="field"><label>ملاحظة</label><input type="text" id="fi_note" placeholder="اختياري"></div>
+      <div id="fgeo" class="fgeo"></div>
+      <div class="modal-actions"><button class="btn btn-accent" id="fi_go" onclick="App.saveFormIn('${esc(f.id)}')">📦 المرتجع وصل</button><button class="btn" onclick="App.closeModal()">إلغاء</button></div>
+      <div class="small muted">اللي استلم: ${esc(u.name||u.username||'')} • الوقت بيتسجّل لوحده.</div>`, 560);
+    this.formGeoStart('warehouse', whId);
+  },
+  saveFormIn(code){
+    const f = this.formByCode(code); if(!f || !this.canFormIn(f)) return;
+    if(f.in){ this.notify(`وصول النموذج ده اتسجّل قبل كده (${f.in.at}).`); this.closeModal(); return; }
+    const u = this.currentUser(), nTxt = document.getElementById('fi_n').value, whSel = document.getElementById('fi_wh');
+    if(!f.warehouseId) f.warehouseId = whSel ? whSel.value : (u.warehouseId || '');
+    const ev = this.formGeoStamp({ts: Date.now(), at: todayStr()+' '+nowTime(), by: (u.name||u.username||''), uid: u.id,
+      c: document.getElementById('fi_c').value, note: document.getElementById('fi_note').value.trim()});
+    if(nTxt!=='' && Number(nTxt)>=0) ev.n = Number(nTxt);
+    if(!ev.note) delete ev.note;
+    f.in = ev;
+    this.logActivity(`صوّر وصول نموذج المرتجع ${f.id} لـ ${this.whName(f.warehouseId)}`);
+    this.closeModal(); this.refresh();
+    this.notify(`✅ اتسجّل وصول المرتجع ${f.id} — ${ev.at}`);
+  },
+  formTimelineHtml(f){
+    if(!f) return '';
+    const g = this.formReturn(f);
+    const loc = ev=>{ if(!ev) return ''; if(ev.d!=null) return ev.d<=this.formRadius() ? ` • 📍 جوه المكان (${fmtDist(ev.d)})` : ` • <span class="ftl-bad">📍 على بعد ${fmtDist(ev.d)}</span>`; return ev.lat!=null ? ' • 📍 متسجّل' : ' • من غير موقع'; };
+    const step = (cls, tm, title, sub)=>`<div class="ftl-s"><span class="ftl-d ${cls}"></span><span class="ftl-t">${tm}</span><b>${title}</b>${sub? `<small>${sub}</small>`:''}</div>`;
+    const gap = (a,b,label)=> (a && b && b>a) ? `<div class="ftl-g">${label}: ${esc(fmtDur(b-a))}</div>` : '';
+    const recTs = g ? new Date((g.first.date||'')+'T'+(g.first.time||'00:00')).getTime() : 0;
+    let h = step('', esc(f.printedAt||''), 'النموذج اتطبع', esc(f.printedBy? 'طبعه '+f.printedBy : ''));
+    if(f.out) h += step('y', esc(f.out.at), `طلع من ${esc(this.storeName(f.storeId)||'المحل')}`, `صوّره: ${esc(f.out.by||'—')}${f.out.drv? ' • السواق '+esc(f.out.drv):''}${f.out.ph? ' <span dir="ltr">'+esc(f.out.ph)+'</span>':''}${f.out.n!=null? ' • '+fmtNum(f.out.n)+' كرتونة':''}${loc(f.out)}`);
+    if(f.out && f.in) h += gap(f.out.ts, f.in.ts, '🚚 الطريق');
+    if(f.in) h += step('g', esc(f.in.at), `وصل ${esc(this.whName(f.warehouseId))}`, `صوّره: ${esc(f.in.by||'—')}${f.in.n!=null? ' • '+fmtNum(f.in.n)+' كرتونة':''}${f.in.c? ' • '+esc(f.in.c):''}${f.in.note? ' • «'+esc(f.in.note)+'»':''}${loc(f.in)}`);
+    if(f.in && g) h += gap(f.in.ts, recTs, '⏳ فضل مستني التسجيل');
+    if(g) h += step('', esc((g.first.date||'')+' '+(g.first.time||'')), `اتسجّل — المرتجع رقم ${esc(fmtRetNo(g))}`, `سجّله: ${esc(g.by||'—')} • ${this.retCountTxt(g.count)} • كمية النموذج ${fmtNum(g.sent)} • المستلمة ${fmtNum(g.qty)}${g.short? ' • <span class="ftl-bad">عجز '+fmtNum(g.short)+'</span>':''}`);
+    else if(f.cancelled) h += step('r', '', 'النموذج اتلغى', '');
+    else if(this.formLate(f)) h += step('r', '', `متأخر في الطريق من ${esc(fmtDur(Date.now()-f.out.ts))}`, '');
+    return `<div class="ftl">${h}</div>`;
+  },
+  openFormStatus(code){
+    const f = this.formByCode(code);
+    if(!f){ this.notify('النموذج ده مش موجود.'); return; }
+    const boss = this.isAdmin() || this.can('forms.print');
+    const g = this.formReturn(f), state = this.formState(f), flags = this.formFlags(f);
+    const btn = (label, js, cls)=>`<button class="btn ${cls||''}" onclick="${js}">${label}</button>`;
+    const acts = [];
+    if(boss){
+      if(state!=='recorded' && !f.cancelled && this.can('returns.add')) acts.push(btn('📝 سجّل المرتجع من النموذج', `App.closeModal();App.go('returns');App.openReturnForm();App.rfApplyForm('${esc(f.id)}')`, 'btn-accent'));
+      if(g) acts.push(btn(`فتح المرتجع رقم ${esc(fmtRetNo(g))}`, `App.closeModal();App.returnsOpen='${esc(g.gid)}';App.go('returns')`, 'btn-accent'));
+      if(!f.out && !f.cancelled) acts.push(btn('🚚 تسجيل الخروج يدوي', `App.openFormOut('${esc(f.id)}')`));
+      if(!f.in && !f.cancelled) acts.push(btn('📦 تسجيل الوصول يدوي', `App.openFormIn('${esc(f.id)}')`));
+      if(flags.length && !f.reviewed) acts.push(btn('✔ راجعته — شيله من المراجعة', `App.formSetFlag('${esc(f.id)}','reviewed',true)`));
+      if(state!=='recorded') acts.push(f.cancelled ? btn('رجّع النموذج (مش ملغي)', `App.formSetFlag('${esc(f.id)}','cancelled',false)`) : btn('🚫 النموذج اتلغى / اتبوّظ', `App.formSetFlag('${esc(f.id)}','cancelled',true)`));
+      acts.push(btn('🖨 طباعة النموذج تاني', `App.printForms(['${esc(f.id)}'])`));
+    } else {
+      if(state!=='recorded' && !f.out && !f.in && this.canFormOut(f)) acts.push(btn('🚚 المرتجع طلع', `App.openFormOut('${esc(f.id)}')`, 'btn-accent'));
+      if(state!=='recorded' && !f.in && this.canFormIn(f)) acts.push(btn('📦 المرتجع وصل', `App.openFormIn('${esc(f.id)}')`, 'btn-accent'));
+    }
+    this.openModal(`
+      <button class="modal-close" onclick="App.closeModal()">✕</button>
+      <h3>🔳 نموذج مرتجع <span dir="ltr">${esc(f.id)}</span></h3>
+      ${this.formHeadHtml(f)}
+      ${flags.length? `<div class="help-box" style="margin-bottom:10px;border-color:${f.reviewed?'var(--line)':'var(--warn)'};">${f.reviewed? '✔ اتراجع: ' : '⚠ محتاج مراجعة: '}${flags.map(esc).join(' • ')}</div>` : ''}
+      ${this.formTimelineHtml(f)}
+      <div class="modal-actions" style="flex-wrap:wrap;">${acts.join('')}<button class="btn" onclick="App.closeModal()">إغلاق</button></div>`, 640);
+  },
+  formSetFlag(code, key, val){
+    if(!this.can('forms.print')) return;
+    const f = this.formByCode(code); if(!f) return;
+    const apply = ()=>{
+      if(val) f[key] = true; else delete f[key];
+      this.logActivity(key==='cancelled' ? (val? `علّم نموذج المرتجع ${f.id} إنه اتلغى` : `رجّع نموذج المرتجع ${f.id} (مش ملغي)`) : `راجع نموذج المرتجع ${f.id}`);
+      this.refresh(); this.openFormStatus(f.id);
+    };
+    if(key==='cancelled' && val) this.confirmAction(`تعلّم النموذج ${f.id} إنه اتلغى؟ مش هيتحسب في «النماذج اللي ما وصلتش» ومش هينفع يتسجّل منه مرتجع.`, apply, 'إلغاء النموذج');
+    else apply();
+  },
+
+  /* ---------- camera scanner (laptop or phone) ---------- */
+  openQrScanner(cb){
+    let box = document.getElementById('qrScanBox');
+    if(!box){ box = document.createElement('div'); box.id = 'qrScanBox'; document.body.appendChild(box); }
+    box.innerHTML = `<div class="qs-in"><div class="qs-head"><b>📷 صوّر كود نموذج المرتجع</b><button type="button" class="icon-btn" onclick="App.closeQrScanner()">✕</button></div>
+      <video id="qsVideo" playsinline muted autoplay></video>
+      <div class="qs-msg" id="qsMsg">جاري فتح الكاميرا…</div>
+      <div class="qs-manual"><input type="text" id="qsManual" placeholder="أو اكتب رقم النموذج هنا" onkeydown="if(event.key==='Enter'){event.preventDefault();App._qsDone(this.value);}"><button type="button" class="btn btn-accent btn-sm" onclick="App._qsDone(document.getElementById('qsManual').value)">تمام</button></div></div>`;
+    box.classList.add('open');
+    this._qsCb = cb; this._qsBusy = false;
+    const msg = t=>{ const m = document.getElementById('qsMsg'); if(m) m.textContent = t; };
+    if(!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)){ msg('الكاميرا مش متاحة هنا — اكتب رقم النموذج.'); return; }
+    navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}, audio:false}).then(stream=>{
+      if(!box.classList.contains('open')){ stream.getTracks().forEach(t=>t.stop()); return; }
+      this._qsStream = stream;
+      const v = document.getElementById('qsVideo'); v.srcObject = stream; const pl = v.play(); if(pl && pl.catch) pl.catch(()=>{});
+      msg('وجّه كود النموذج للكاميرا…');
+      this._qsDecoder().then(dec=>{ this._qsDec = dec; this._qsTick(); }).catch(()=>msg('مقدرناش نشغّل قارئ الكود — اكتب رقم النموذج.'));
+    }).catch(()=>msg('مقدرناش نفتح الكاميرا (اسمح بالكاميرا من المتصفح) — أو اكتب رقم النموذج.'));
+  },
+  _qsDecoder(){
+    if('BarcodeDetector' in window){
+      try{
+        const bd = new window.BarcodeDetector({formats:['qr_code']});
+        return Promise.resolve(src=>bd.detect(src.video).then(r=>r && r[0] ? r[0].rawValue : null));
+      }catch(e){}
+    }
+    const viaJsQR = ()=>src=>{ const r = window.jsQR(src.img.data, src.w, src.h, {inversionAttempts:'attemptBoth'}); return Promise.resolve(r ? r.data : null); };
+    if(window.jsQR) return Promise.resolve(viaJsQR());
+    return new Promise((res, rej)=>{ const s = document.createElement('script'); s.src = JSQR_URL; s.onload = ()=> window.jsQR ? res(viaJsQR()) : rej(); s.onerror = rej; document.head.appendChild(s); });
+  },
+  _qsTick(){
+    const box = document.getElementById('qrScanBox'), v = document.getElementById('qsVideo');
+    if(!box || !box.classList.contains('open') || !v) return;
+    this._qsTimer = setTimeout(()=>this._qsTick(), 250);
+    if(this._qsBusy || !this._qsDec || v.readyState<2 || !v.videoWidth) return;
+    const w = Math.min(720, v.videoWidth), h = Math.round(v.videoHeight * w / v.videoWidth);
+    const c = this._qsCanvas || (this._qsCanvas = document.createElement('canvas')); c.width = w; c.height = h;
+    const ctx = c.getContext('2d', {willReadFrequently:true}); ctx.drawImage(v, 0, 0, w, h);
+    this._qsBusy = true;
+    let src = {video: v, w, h};
+    try{ if(!('BarcodeDetector' in window)) src.img = ctx.getImageData(0,0,w,h); }catch(e){}
+    Promise.resolve().then(()=>this._qsDec(src)).then(val=>{ this._qsBusy = false; if(val) this._qsDone(val); }).catch(()=>{ this._qsBusy = false; });
+  },
+  _qsDone(val){
+    const c = normFormCode(val);
+    if(!c) return;
+    const cb = this._qsCb;
+    this.closeQrScanner();
+    if(cb) cb(c);
+  },
+  closeQrScanner(){
+    clearTimeout(this._qsTimer);
+    if(this._qsStream){ try{ this._qsStream.getTracks().forEach(t=>t.stop()); }catch(e){} this._qsStream = null; }
+    const box = document.getElementById('qrScanBox'); if(box){ box.classList.remove('open'); box.innerHTML = ''; }
+  },
+
+  /* ---------- the form number inside "new return" ---------- */
+  rfApplyForm(raw){
+    const st = this.rf, el = document.getElementById('f_form'), msg = document.getElementById('rfFormMsg');
+    if(!st || !el) return;
+    let code = normFormCode(raw);
+    el.value = code;
+    const storeSel = document.getElementById('f_store'), u = this.currentUser();
+    const lockedStore = !this.allStores() ? u.storeId : null;
+    st.form = null;
+    if(storeSel && !lockedStore) storeSel.disabled = false;
+    const say = (cls, html)=>{ if(msg){ msg.className = 'rf-form-msg '+cls; msg.innerHTML = html; } };
+    if(!code){ say('', ''); return; }
+    const f = this.formByCode(code);
+    if(!f){ say('bad', `⛔ مفيش نموذج متطبع بالرقم <b dir="ltr">${esc(code)}</b>.`); return; }
+    if(f.id!==code){ code = f.id; el.value = code; }
+    if(f.cancelled){ say('bad', `⛔ النموذج <b dir="ltr">${esc(code)}</b> متعلّم إنه اتلغى.`); return; }
+    const g = this.formReturn(f);
+    if(g){ say('bad', `⛔ النموذج <b dir="ltr">${esc(code)}</b> اتسجّل قبل كده في المرتجع رقم <b>${esc(fmtRetNo(g))}</b> يوم ${esc(g.first.date||'')} — مش هينفع يتسجّل مرتين.`); return; }
+    if(lockedStore && f.storeId!==lockedStore){ say('bad', `⛔ النموذج ده تبع ${esc(this.storeName(f.storeId)||'محل تاني')}.`); return; }
+    if(storeSel){ storeSel.value = f.storeId; storeSel.disabled = true; }
+    const wh = document.getElementById('f_wh'); if(wh && f.warehouseId) wh.value = f.warehouseId;
+    const rb = document.getElementById('f_recvby'); if(rb && !rb.value.trim() && f.in && f.in.by) rb.value = f.in.by;
+    st.form = code;
+    say('ok', `✔ نموذج <b dir="ltr">${esc(code)}</b> — ${esc(this.storeName(f.storeId)||'')} ← ${esc(f.warehouseId? this.whName(f.warehouseId) : '—')} • اتطبع ${esc(f.printedAt||'')}${f.out? ' • طلع '+esc(f.out.at):''}${f.in? ' • وصل '+esc(f.in.at)+(f.in.by? ' (استلمها '+esc(f.in.by)+')':''):''}`);
+  },
+
+  /* ---------- the owner's board on the dashboard ---------- */
+  formsBoardHtml(){
+    const u = this.currentUser();
+    const scanner = !this.isAdmin() && !this.can('forms.print') && (this.can('forms.out') || this.can('forms.in'));
+    if(scanner){
+      return `<div class="card" style="margin-bottom:14px;border-color:var(--accent);display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:220px;"><b>🔳 نموذج مرتجع؟</b><div class="small muted">صوّر الكود اللي على النموذج بكاميرا الموبايل، أو من الزرار ده — ${this.can('forms.out')? 'وقت ما البضاعة تطلع من المحل':''}${this.can('forms.out')&&this.can('forms.in')?' / ':''}${this.can('forms.in')? 'وقت ما البضاعة توصل المستودع':''}.</div></div>
+        <button class="btn btn-accent" onclick="App.openQrScanner(c=>App.openFormScan(c))">📷 صوّر كود النموذج</button></div>`;
+    }
+    if(!this.can('forms.print') || !this.formsInUse()) return '';
+    const fs = this.db.forms||[];
+    const transit = fs.filter(f=>this.formState(f)==='transit').sort((a,b)=>a.out.ts-b.out.ts);
+    const arrived = fs.filter(f=>this.formState(f)==='arrived').sort((a,b)=>a.in.ts-b.in.ts);
+    const review = fs.filter(f=>!f.reviewed && !f.cancelled && this.formFlags(f).length);
+    const missing = this.formsMissing();
+    const card = (f, line2, cls)=>`<a href="#" class="fcard ${cls||''}" onclick="App.openFormStatus('${esc(f.id)}');return false;"><b dir="ltr">${esc(f.id)}</b> ${esc(this.storeName(f.storeId)||'')} ← ${esc(f.warehouseId? this.whName(f.warehouseId):'—')}<div class="small muted">${line2}</div></a>`;
+    const col = (title, n, items, more)=>`<div class="fcol"><div class="fcol-h"><b>${title}</b><span class="tag">${fmtNum(n)}</span></div>${items.slice(0,5).join('')}${items.length>5? `<div class="small muted">+ ${fmtNum(items.length-5)} كمان — في تقرير النماذج</div>`:''}${more||''}${!items.length && !more? '<div class="small muted">مفيش</div>':''}</div>`;
+    const tItems = transit.map(f=>card(f, `طلع ${esc(f.out.at)}${f.out.drv? ' • السواق '+esc(f.out.drv):''}${this.formLate(f)? ` • <span class="ftl-bad">متأخر ${esc(fmtDur(Date.now()-f.out.ts))}</span>`:''}`, this.formLate(f)?'late':''));
+    const aItems = arrived.map(f=>card(f, `وصل ${esc(f.in.at)} • استلمها ${esc(f.in.by||'—')}${this.formFlags(f).length? ' • ⚠':''}`));
+    const rItems = review.map(f=>card(f, esc(this.formFlags(f)[0]), 'warn'));
+    const missMore = missing.length? `<a href="#" class="fcard bad" onclick="App.go('reports');App.reportsTab='forms';App.render();return false;"><b>${fmtNum(missing.length)} نموذج ما وصلش</b><div class="small muted">${missing.slice(0,4).map(f=>esc(f.id)).join(' • ')}${missing.length>4?' …':''} — طلع بعدهم نماذج أحدث</div></a>` : '';
+    return `<div class="card" style="margin-bottom:14px;">
+      <div class="section-head"><h3>🔳 متابعة نماذج المرتجع في السكة</h3><div class="actions">
+        <button class="btn btn-sm" onclick="App.openQrScanner(c=>App.openFormScan(c))">📷 صوّر نموذج</button>
+        <button class="btn btn-sm" onclick="App.openFormsPrint()">🖨 طباعة نماذج</button></div></div>
+      <div class="fcols">
+        ${col('🚚 في الطريق', transit.length, tItems)}
+        ${col('📦 وصلت المستودع — مستنية تسجيلك', arrived.length, aItems)}
+        ${col('⚠ محتاجة مراجعة', review.length + missing.length, rItems, missMore)}
+      </div></div>`;
+  },
+
+  /* ---------- report ---------- */
+  rp_forms:{store:''},
+  reportForms(){
+    const d = this.db, st = this.rp_forms;
+    let fs = (d.forms||[]).slice();
+    if(st.store) fs = fs.filter(f=>f.storeId===st.store);
+    const S = s=>fs.filter(f=>this.formState(f)===s);
+    const missing = this.formsMissing(st.store||null);
+    const late = fs.filter(f=>this.formLate(f));
+    const trip = f=> f.out && f.in && f.in.ts>f.out.ts ? f.in.ts-f.out.ts : null;
+    const avg = arr=>{ const v = arr.filter(x=>x!=null); return v.length ? v.reduce((a,b)=>a+b,0)/v.length : null; };
+    const byStore = d.stores.filter(s=>!st.store || s.id===st.store).map(s=>{
+      const l = fs.filter(f=>f.storeId===s.id); if(!l.length) return null;
+      const nums = l.map(f=>this.formNum(f));
+      return {s, n:l.length, first: l.find(f=>this.formNum(f)===Math.min(...nums)).id, last: l.find(f=>this.formNum(f)===Math.max(...nums)).id,
+        rec: l.filter(f=>this.formState(f)==='recorded').length, tr: l.filter(f=>this.formState(f)==='transit').length, ar: l.filter(f=>this.formState(f)==='arrived').length,
+        miss: missing.filter(f=>f.storeId===s.id), avg: avg(l.map(trip))};
+    }).filter(Boolean);
+    const drivers = new Map();
+    fs.forEach(f=>{ if(!f.out) return; const k = (f.out.drv||'').trim() || 'غير مكتوب'; if(!drivers.has(k)) drivers.set(k, []); drivers.get(k).push(f); });
+    const dRows = Array.from(drivers.entries()).map(([k,l])=>({k, n:l.length, avg: avg(l.map(trip)), max: Math.max(0, ...l.map(f=>trip(f)||0)), short: l.filter(f=>f.in && Number(f.out.n)>0 && f.in.n!=null && Number(f.in.n)<Number(f.out.n)).length, late: l.filter(f=>this.formLate(f)).length}))
+      .sort((a,b)=>b.n-a.n);
+    const act = fs.filter(f=>f.out||f.in||f.gid).sort((a,b)=>((b.in||b.out||{}).ts||0)-((a.in||a.out||{}).ts||0)).slice(0,300);
+    return `
+    <div class="card"><div class="grid grid-4" style="align-items:end;">
+      ${this.allStores()? `<div class="field" style="margin:0;"><label>المحل</label><select id="formsRepStore" onchange="App.rp_forms.store=this.value;App.reReport()"><option value="">كل المحلات</option>${d.stores.map(s=>`<option value="${esc(s.id)}" ${st.store===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div>`:''}
+      ${this.can('forms.print')? `<div><button class="btn btn-sm" onclick="App.openFormsPrint()">🖨 طباعة نماذج</button></div>`:''}
+    </div></div>
+    <div class="grid grid-4" style="margin-top:14px;">
+      <div class="stat"><div class="n">${fmtNum(fs.length)}</div><div class="l">نماذج اتطبعت</div></div>
+      <div class="stat"><div class="n">${fmtNum(S('recorded').length)}</div><div class="l">اتسجّل منها مرتجع</div></div>
+      <div class="stat"><div class="n">${fmtNum(S('transit').length)} <span class="small muted">/ ${fmtNum(S('arrived').length)}</span></div><div class="l">في الطريق / وصلت ومستنية تسجيلك${late.length? ` — <b style="color:var(--bad);">${fmtNum(late.length)} متأخر</b>`:''}</div></div>
+      <div class="stat ${missing.length?'accent':''}"><div class="n">${fmtNum(missing.length)}</div><div class="l">نماذج ما وصلتش (طلع بعدها نماذج أحدث)</div></div>
+    </div>
+    ${!fs.length? `<div class="empty" style="margin-top:14px;">لسه ما اتطبعش نماذج مرتجع.</div>` : `
+    <div class="card" style="margin-top:14px;"><div class="section-head"><h3>النماذج حسب المحل</h3></div>
+      <div class="tbl-wrap"><table class="tbl ret-lines"><thead><tr><th>المحل</th><th>اتطبع</th><th>الأرقام</th><th>اتسجّل</th><th>في الطريق</th><th>مستنية تسجيلك</th><th>ما وصلتش</th><th>متوسط مدة الطريق</th></tr></thead><tbody>
+      ${byStore.map(r=>`<tr><td class="ret-from">${esc(r.s.name)}</td><td>${fmtNum(r.n)}</td><td dir="ltr" style="text-align:right">${esc(r.first)} → ${esc(r.last)}</td><td>${fmtNum(r.rec)}</td><td>${r.tr? fmtNum(r.tr):'—'}</td><td>${r.ar? fmtNum(r.ar):'—'}</td>
+        <td>${r.miss.length? r.miss.slice(0,8).map(f=>`<a href="#" class="tag bad" dir="ltr" onclick="App.openFormStatus('${esc(f.id)}');return false;">${esc(f.id)}</a>`).join(' ')+(r.miss.length>8?' …':'') : '<span class="tag good">لا يوجد</span>'}</td>
+        <td>${r.avg!=null? esc(fmtDur(r.avg)) : '—'}</td></tr>`).join('')}
+      </tbody></table></div></div>
+    <div class="card" style="margin-top:14px;"><div class="section-head"><h3>مدة الطريق حسب السواق</h3></div>
+      ${dRows.length? `<div class="tbl-wrap"><table class="tbl ret-lines"><thead><tr><th>السواق</th><th>عدد المشاوير</th><th>متوسط المدة</th><th>أطول مدة</th><th>وصلت ناقصة كراتين</th><th>متأخر دلوقتي</th></tr></thead><tbody>
+      ${dRows.map(r=>`<tr><td>${esc(r.k)}</td><td>${fmtNum(r.n)}</td><td>${r.avg!=null? esc(fmtDur(r.avg)):'—'}</td><td>${r.max? esc(fmtDur(r.max)):'—'}</td><td>${r.short? `<span class="tag bad">${fmtNum(r.short)}</span>`:'—'}</td><td>${r.late? `<span class="tag bad">${fmtNum(r.late)}</span>`:'—'}</td></tr>`).join('')}
+      </tbody></table></div>` : '<div class="empty small">لسه محدش صوّر خروج نموذج.</div>'}</div>
+    <div class="card" style="margin-top:14px;"><div class="section-head"><h3>حركة النماذج</h3></div>
+      ${act.length? `<div class="tbl-wrap"><table class="tbl ret-lines"><thead><tr><th>النموذج</th><th>من (المحل)</th><th>إلى (المستودع)</th><th>طلع</th><th>السواق</th><th>وصل</th><th>استلمها</th><th>مدة الطريق</th><th>الحالة</th></tr></thead><tbody>
+      ${act.map(f=>`<tr><td><a href="#" class="ret-no" dir="ltr" onclick="App.openFormStatus('${esc(f.id)}');return false;">${esc(f.id)}</a></td><td class="ret-from">${esc(this.storeName(f.storeId)||'—')}</td><td class="ret-to">${esc(f.warehouseId? this.whName(f.warehouseId):'—')}</td>
+        <td>${f.out? esc(f.out.at):'—'}</td><td>${f.out&&f.out.drv? esc(f.out.drv):'—'}</td><td>${f.in? esc(f.in.at):'—'}</td><td>${f.in? esc(f.in.by||'—'):'—'}</td><td>${trip(f)!=null? esc(fmtDur(trip(f))):'—'}</td>
+        <td>${this.formStateHtml(f)}${this.formFlags(f).length && !f.reviewed? ' <span class="tag warn">⚠ مراجعة</span>':''}</td></tr>`).join('')}
+      </tbody></table></div>` : '<div class="empty small">لسه مفيش حركة.</div>'}</div>`}
+    `;
+  },
+
   openReturnDoc(gid){ this.returnsOpen = gid; this.render(); window.scrollTo(0,0); },
   closeReturnDoc(){ this.returnsOpen = null; this.render(); },
   renderReturns(){
@@ -2617,6 +3359,8 @@ const App = {
       <div class="section-head">
         <h3>سجل المرتجعات <span class="muted small">(${fmtNum(groups.length)} مرتجع — ${fmtNum(lineCount)} صنف — إجمالي الكمية ${fmtNum(totalQty)}${totalShort? ` — عجز ${fmtNum(totalShort)}`:''})</span></h3>
         <div class="actions">
+          ${this.can('forms.print')? `<button class="btn btn-sm" onclick="App.openFormsPrint()">🔳 نماذج المرتجع</button>`:''}
+          ${(this.can('forms.print')||this.can('forms.out')||this.can('forms.in')) && this.formsInUse()? `<button class="btn btn-sm" onclick="App.openQrScanner(c=>App.openFormScan(c))">📷 صوّر نموذج</button>`:''}
           <button class="btn btn-sm" onclick="App.exportCSV(App.buildReturnsExportRows(),'المرتجعات')">تصدير CSV</button>
           ${this.can('returns.import')? `<button class="btn btn-sm" onclick="App.openImportReturns()">📥 استيراد من إكسيل</button>`:''}
           ${this.can('returns.add')? `<button class="btn btn-accent btn-sm" onclick="App.openReturnForm()">+ تسجيل مرتجع جديد</button>`:''}
@@ -2694,6 +3438,7 @@ const App = {
       </div>
       <div class="ret-grid" style="margin-bottom:14px;">
         ${chip('رقم المرتجع', `<b>${esc(fmtRetNo(g))}</b>`)}
+        ${g.formNo? chip('رقم النموذج', `<a href="#" class="ret-no" dir="ltr" onclick="App.openFormStatus('${esc(g.formNo)}');return false;">${esc(g.formNo)}</a>`) : ''}
         ${chip('رقم التحويل', esc(g.transferNo||'—'))}
         ${chip('التاريخ', esc(g.date||'—'))}
         ${chip('الوقت', times)}
@@ -2702,7 +3447,7 @@ const App = {
         ${chip('سجّله', esc(g.by||'—'))}
         ${chip('طريقة العلاج', esc(this.retResSummary(g)))}
         ${g.note? chip('ملاحظات', esc(g.note)) : ''}
-      </div>`;
+      </div>${g.formNo? this.formTimelineCard(g.formNo) : ''}`;
   },
   renderReturnDoc(g){
     const d = this.db;
@@ -2789,6 +3534,7 @@ const App = {
       const ids = new Set(g.lines.map(l=>l.id));
       g.lines.forEach(r=>this.retStock(r, -1));
       this.db.returns = this.db.returns.filter(r=>!ids.has(r.id));
+      (this.db.forms||[]).forEach(f=>{ if(f.gid===g.gid) delete f.gid; });    // its form can be recorded again
       this.logActivity(`حذف المرتجع رقم ${fmtRetNo(g)} (${this.retCountTxt(g.count)}) — ${this.storeName(g.storeId)||''}`);
       this.returnsOpen = null;
       this.refresh();
@@ -2798,10 +3544,10 @@ const App = {
   buildReturnsExportRows(){
     const rows = this.allStores() ? this.db.returns : this.db.returns.filter(r=>r.storeId===this.currentUser().storeId);
     return [
-      ['رقم المرتجع','التاريخ','الوقت','المحل','اسم الصنف','رمز الصنف','الباركود','الكمية','الوحدة','رقم تحويل المرتجع','السبب','تاريخ الصلاحية','المستودع','كمية النموذج','الكمية المستلمة','الفرق','المسؤول','استلمها في المستودع','طريقة العلاج'],
+      ['رقم المرتجع','التاريخ','الوقت','المحل','اسم الصنف','رمز الصنف','الباركود','الكمية','الوحدة','رقم تحويل المرتجع','السبب','تاريخ الصلاحية','المستودع','كمية النموذج','الكمية المستلمة','الفرق','المسؤول','استلمها في المستودع','طريقة العلاج','رقم النموذج'],
       ...rows.map(r=>{
         const it = this.db.items.find(i=>i.id===r.itemId);
-        return [fmtRetNo(r),r.date,r.time,this.storeName(r.storeId),it?it.name:'—',(it&&it.code)||'',(it&&it.barcode)||'',r.qty,this.returnUnit(r),r.transferNo,r.reason,r.expiry,this.whName(r.warehouseId),retSent(r),retRecv(r),retDiff(r),r.resp||'غير محدد',r.receivedBy||'',r.resolution||'معلّق'];
+        return [fmtRetNo(r),r.date,r.time,this.storeName(r.storeId),it?it.name:'—',(it&&it.code)||'',(it&&it.barcode)||'',r.qty,this.returnUnit(r),r.transferNo,r.reason,r.expiry,this.whName(r.warehouseId),retSent(r),retRecv(r),retDiff(r),r.resp||'غير محدد',r.receivedBy||'',r.resolution||'معلّق',r.formNo||''];
       })
     ];
   },
@@ -2878,10 +3624,16 @@ const App = {
     const doc = gid ? this.retGroup(gid) : null;
     const defStore = doc ? doc.storeId : (lockedStore || (d.stores[0]&&d.stores[0].id));
     const defWh = doc ? (doc.warehouseId||'') : (u.warehouseId || this.storeDefaultWarehouse(defStore) || '');
-    this.rf = {gid: doc ? doc.gid : null, lines: []};
+    this.rf = {gid: doc ? doc.gid : null, lines: [], form: null};
     this.openModal(`
       <button class="modal-close" onclick="App.closeModal()">✕</button>
       <h3>${doc? `إضافة أصناف للمرتجع رقم ${esc(fmtRetNo(doc))}` : 'تسجيل مرتجع جديد'}</h3>
+      ${!doc && this.formsInUse()? `<div class="rf-form">
+        <label for="f_form">رقم نموذج المرتجع</label>
+        <input type="text" id="f_form" dir="ltr" placeholder="صوّر الكود أو اكتب الرقم — اختياري" onchange="App.rfApplyForm(this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();App.rfApplyForm(this.value);}">
+        <button type="button" class="btn btn-sm" onclick="App.openQrScanner(c=>App.rfApplyForm(c))">📷 صوّر النموذج</button>
+        <div id="rfFormMsg" class="rf-form-msg"></div>
+      </div>` : ''}
       <div class="rf-sec">بيانات المرتجع</div>
       <div class="rf-row rf-h">
         <div class="field"><label>من (المحل)</label>
@@ -3079,6 +3831,13 @@ const App = {
     if(qtyEl && parseFloat(qtyEl.value)>0){ const l = this.rfReadLine(false); if(!l) return; st.lines.push(l); qtyEl.value = ''; }
     if(!st.lines.length){ this.notify('أضف صنف واحد على الأقل (الصنف والكمية) قبل الحفظ.'); return; }
     const doc = st.gid ? this.retGroup(st.gid) : null;
+    let formNo = doc ? (doc.formNo||'') : '';
+    const fEl = document.getElementById('f_form');
+    if(!doc && fEl && fEl.value.trim()){
+      if(normFormCode(fEl.value)!==st.form) this.rfApplyForm(fEl.value);
+      if(!st.form){ this.notify('رقم النموذج اللي مكتوب مش صحيح أو اتسجّل قبل كده — صححه أو امسحه قبل الحفظ.'); return; }
+      formNo = st.form;
+    }
     const storeId = doc ? doc.storeId : document.getElementById('f_store').value;
     const warehouseId = doc ? (doc.warehouseId||null) : (document.getElementById('f_wh').value || null);
     const transferNo = doc ? doc.transferNo : document.getElementById('f_transfer').value.trim();
@@ -3096,16 +3855,18 @@ const App = {
       if(doc) rec.no = doc.no;
       if(note) rec.note = note;
       if(receivedBy) rec.receivedBy = receivedBy;
+      if(formNo) rec.formNo = formNo;
       this.db.returns.push(rec);
       // a return moves stock from the store back to the warehouse: the store loses what it sent, the warehouse gains what it received
       this.retStock(rec, 1);
     });
+    if(formNo){ const fm = this.formByCode(formNo); if(fm){ fm.gid = gid; if(!fm.warehouseId && warehouseId) fm.warehouseId = warehouseId; } }
     ensureReturnNos(this.db);
     const saved = this.db.returns.find(r=>r.gid===gid);
     const n = st.lines.length, total = st.lines.reduce((a,l)=>a+Number(l.qty||0),0);
     const shortQ = Math.round(st.lines.reduce((a,l)=>{ const x = retDiff(l); return a+(x>0?x:0); },0)*1000)/1000;
     this.logActivity(doc ? `أضاف ${this.retCountTxt(n)} للمرتجع رقم ${fmtRetNo(saved)} — ${this.storeName(storeId)||''}`
-      : `سجّل مرتجع جديد رقم ${fmtRetNo(saved)}: ${this.retCountTxt(n)} (${fmtNum(total)}) — من ${this.storeName(storeId)||''} إلى ${this.whName(warehouseId)}${receivedBy? ' — استلمها '+receivedBy:''}${shortQ? ' — عجز '+fmtNum(shortQ):''}`);
+      : `سجّل مرتجع جديد رقم ${fmtRetNo(saved)}: ${this.retCountTxt(n)} (${fmtNum(total)}) — من ${this.storeName(storeId)||''} إلى ${this.whName(warehouseId)}${receivedBy? ' — استلمها '+receivedBy:''}${shortQ? ' — عجز '+fmtNum(shortQ):''}${formNo && !doc? ' — نموذج '+formNo:''}`);
     this.rf = null;
     this.closeModal();
     if(this.view==='returns') this.returnsOpen = gid;
@@ -3188,6 +3949,7 @@ const App = {
         this.logActivity(`حذف مرتجع: ${this.itemName(r.itemId)} (${fmtNum(r.qty)}) — ${this.storeName(r.storeId)||''}`);
       }
       this.db.returns = this.db.returns.filter(r=>r.id!==id);
+      (this.db.forms||[]).forEach(f=>{ if(f.gid && !this.db.returns.some(x=>x.gid===f.gid)) delete f.gid; });
       this.refresh();
     });
   },
@@ -5028,6 +5790,7 @@ const App = {
       {id:'custom', label:'تقرير شامل (PDF / إكسيل)'},
       {id:'record', label:'🔍 سجل المرتجعات والبحث بالرقم'},
       {id:'diffs', label:'⚖ الفروقات والمسؤولية'},
+      {id:'forms', label:'🔳 نماذج المرتجع والتتبع'},
       {id:'item-period', label:'مقارنة فترات لصنف'},
       {id:'store', label:'تقرير حسب المحل'},
       {id:'branch-perf', label:'🏆 أداء الفروع'},
@@ -5061,6 +5824,7 @@ const App = {
       case 'custom': return this.reportCustom();
       case 'record': return this.reportRecordLookup();
       case 'diffs': return this.reportDiffs();
+      case 'forms': return this.reportForms();
       case 'item-period': return this.reportItemPeriod();
       case 'store': return this.reportByStore();
       case 'branch-perf': return this.reportBranchPerformance();
@@ -7238,6 +8002,15 @@ service cloud.firestore {
   .ret-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-bottom:8px;}
   .ret-route{display:flex;align-items:center;gap:14px;border:1.5px solid #333;border-radius:8px;padding:8px 12px;margin-bottom:8px;}
   .ret-route b{font-size:15px;}
+  .ftl{position:relative;padding-right:22px;margin:4px 0;}
+  .ftl:before{content:'';position:absolute;right:7px;top:4px;bottom:4px;width:2px;background:#ccc;}
+  .ftl-s{position:relative;margin-bottom:7px;}
+  .ftl-s small{display:block;color:#555;font-size:10.5px;}
+  .ftl-d{position:absolute;right:-20px;top:3px;width:11px;height:11px;border-radius:50%;background:#0E7490;}
+  .ftl-d.y{background:#a16207;}.ftl-d.g{background:#15803d;}.ftl-d.r{background:#b91c1c;}
+  .ftl-t{float:left;font-weight:700;direction:ltr;}
+  .ftl-g{font-size:10.5px;color:#0E7490;margin:-3px 0 6px;}
+  .ftl-bad{color:#b91c1c;font-weight:700;}
   .ret-arr{font-weight:900;font-size:18px;}
   .ret-cell{border:1px solid #ddd;border-radius:6px;padding:6px 8px;}
   .ret-val{margin-top:2px;font-size:12.5px;}
@@ -7476,7 +8249,8 @@ try{
     const out = {};
     Object.keys(m).forEach(k=>{ if(k!=='__storage' && !SPLIT_KEYS.includes(k)) out[k]=m[k]; });
     for(const key of SPLIT_KEYS){
-      const n = (m.__storage.parts||{})[key]||0;
+      let n = (m.__storage.parts||{})[key];
+      if(n==null){ n = 0; while(S.chunks[`${key}__${n}`]!=null) n++; }   // a page that doesn't know this list saved the main doc
       let arr = [];
       for(let i=0;i<n;i++){
         const id = `${key}__${i}`, raw = S.chunks[id];
@@ -7514,7 +8288,7 @@ try{
       try{ mirrorRebase(); }catch(e){ console.error(e); }
       if(renumbered){ clearTimeout(window.__renumT); window.__renumT = setTimeout(()=>{ saveData(App.db); try{ mirrorVerify(true); }catch(e){} }, 2500); }
     }
-    if(document.getElementById('app').style.display !== 'none'){ App.buildNav(); App.render(); }
+    if(document.getElementById('app').style.display !== 'none'){ App.buildNav(); App.render(); App.tryPendingForm(); }
   };
 
   auth.onAuthStateChanged(user=>{
