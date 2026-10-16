@@ -16,7 +16,7 @@ document.documentElement.setAttribute('lang','ar'); document.documentElement.set
 (function(){
   var base = location.origin + '/';
   var mf = {
-    name:'نظام إدارة مرتجعات المحلات', short_name:'المرتجعات', description:'نظام إدارة مرتجعات المحلات والمخزون والتقارير',
+    name:'نظام إدارة مرتجعات المحلات', short_name:'المرتجعات', description:'نظام إدارة مرتجعات المحلات والتقارير',
     id: base, start_url: base, scope: base, display:'standalone', dir:'rtl', lang:'ar',
     background_color:'#151D2B', theme_color:'#151D2B',
     icons:[
@@ -399,6 +399,27 @@ table.tbl.ret-lines th,table.tbl.ret-lines td{padding:10px 8px;}
 .rf-sum b{display:block;font-size:17px;color:var(--ink);}
 .rf-sum .bad b{color:var(--bad);}.rf-sum .good b{color:var(--good);}
 @media(max-width:900px){.rf-sum{grid-template-columns:1fr 1fr;}}
+.ana-filters{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;align-items:end;}
+@media(max-width:980px){.ana-filters{grid-template-columns:repeat(2,minmax(0,1fr));}}
+.ana-tbl th,.ana-tbl td{padding:9px 7px;}
+.ana-tbl td:first-child{white-space:normal;min-width:150px;}
+/* wide screens: the details sit beside the table; otherwise they slide in from the side over the page */
+@media(min-width:1700px){.ana-wrap.has-sel{display:grid;grid-template-columns:minmax(0,2.3fr) minmax(320px,1fr);gap:14px;align-items:start;}}
+@media(max-width:1699px){.ana-side{position:fixed;top:0;left:0;bottom:0;width:min(410px,94vw);z-index:60;overflow-y:auto;border-radius:0;margin:0;box-shadow:0 0 0 100vmax rgba(0,0,0,.35),0 10px 40px rgba(0,0,0,.5);}}
+.ana-row{cursor:pointer;}
+.ana-row:hover td{background:var(--surface-2);}
+.ana-row.ana-on td{background:var(--bad-soft);}
+@media(min-width:1700px){.ana-side{position:sticky;top:12px;}}
+.ana-tl{border-right:3px solid var(--line);padding-right:14px;margin-right:6px;}
+.ana-ev{position:relative;margin-bottom:10px;font-size:13px;}
+.ana-ev:before{content:'';position:absolute;right:-21px;top:4px;width:11px;height:11px;border-radius:50%;background:var(--accent);}
+.ana-ev.r:before{background:var(--bad);}
+.ana-ev small{display:block;color:var(--muted);font-size:11.5px;margin-top:2px;}
+.ana-flag{display:flex;gap:10px;border-radius:12px;padding:10px 12px;font-size:13px;margin-top:10px;line-height:1.8;border:1px solid var(--line);}
+.ana-flag.bad{background:var(--bad-soft);border-color:var(--bad);}
+.ana-flag.warn{background:var(--warn-soft);border-color:var(--warn);}
+.ana-flag.good{background:var(--good-soft);border-color:var(--good);}
+.ana-sug{color:var(--bad);font-weight:700;}
 .bar-cell{display:flex;align-items:center;gap:8px;min-width:160px;}
 .bar-cell i{display:block;height:10px;border-radius:100px;background:var(--accent);min-width:3px;}
 @media(max-width:900px){.rf-h,.rf-i1,.rf-i2{grid-template-columns:1fr 1fr;}}
@@ -1380,11 +1401,6 @@ const PERM_SCHEMA = [
     {k:'edit', label:'إضافة / تعديل / حذف الأصناف', def:true},
     {k:'import', label:'استيراد أصناف من إكسيل', def:p=>!!(p.items&&p.items.edit)},
   ]},
-  {g:'inventory', label:'▥ المخزون', keys:[
-    {k:'view', label:'يشوف أرصدة المخزون', def:true},
-    {k:'edit', label:'تعديل رصيد صنف يدويًا', def:false},
-    {k:'import', label:'رفع أرصدة من إكسيل (جرد / استلام)', def:p=>!!(p.inventory&&p.inventory.edit)},
-  ]},
   {g:'stores', label:'⌘ المحلات', keys:[
     {k:'view', label:'يشوف المحلات', def:false},
     {k:'edit', label:'إضافة / تعديل / حذف المحلات', def:false},
@@ -1412,7 +1428,7 @@ const PERM_SCHEMA = [
     {k:'store', label:'تقرير حسب المحل', def:true},
     {k:'branch-perf', label:'أداء الفروع', def:true},
     {k:'movers', label:'الأكثر والأقل ترجيعًا', def:true},
-    {k:'stock', label:'المخزون والنواقص', def:true},
+    {k:'ret-analysis', label:'تحليل المرتجعات المفصّل (الصنف في كل محل)', def:true},
     {k:'orders-vs-returns', label:'الطلبيات مقابل المرتجعات', def:true},
     {k:'expiry', label:'تقرير الصلاحية', def:true},
     {k:'costs', label:'التكاليف والخسائر (محتاج كمان صلاحية المالية)', def:true},
@@ -1692,6 +1708,7 @@ const App = {
     this.buildNav();
     this.go('dashboard');
     this.tryPendingRet();
+    this.maybeRemind();
   },
 
   /* ---------------- EMAIL VERIFICATION (EmailJS) ----------------
@@ -1940,7 +1957,6 @@ const App = {
     {id:'orders', label:'الطلبيات', ic:'▤', perm:'orders.view'},
     {id:'reports', label:'التقارير', ic:'▦', perm:'reports.view'},
     {id:'items', label:'الأصناف', ic:'◆', perm:'items.view'},
-    {id:'inventory', label:'المخزون', ic:'▥', perm:'inventory.view'},
     {id:'stores', label:'المحلات', ic:'⌘', perms:['stores.view','links.view']},
     {id:'warehouses', label:'المستودعات', ic:'⛁', perm:'warehouses.view'},
     {id:'users', label:'المستخدمون', ic:'☺', adminOnly:true},
@@ -2231,8 +2247,10 @@ const App = {
     const s = this.db.stock.find(x=>x.itemId===itemId && x.locType===locType && x.locId===locId);
     return s ? s.qty : 0;
   },
+  /* the program no longer keeps stock balances (it only organises the data and does the maths) —
+     movements are deliberately ignored; old balances already saved are left untouched */
   adjustStock(itemId, locType, locId, delta){
-    if(!locId || !delta) return;
+    return;
     let s = this.db.stock.find(x=>x.itemId===itemId && x.locType===locType && x.locId===locId);
     if(!s){ s = {id:uid(), itemId, locType, locId, qty:0}; this.db.stock.push(s); }
     s.qty += delta;
@@ -2262,6 +2280,7 @@ const App = {
     this.go(view);
   },
   go(view){
+    if(view==='inventory') view = 'items';
     const meta0 = this.NAV.find(n=>n.id===view);
     if(meta0 && !this.navVisible(meta0)){
       const first = this.NAV.find(n=>this.navVisible(n));
@@ -2804,6 +2823,77 @@ const App = {
     if(hl.gid && !(su && su.role==='admin')){ this.publicGid = hl.gid; this.showPublicReturn(); }
     else { this.pendingRet = hl; this.tryPendingRet(); }
   },
+  /* ---------------- reminder to record returns, shown when the program opens (admin accounts) ---------------- */
+  _remindTimer: null, _remindDone: false,
+  _lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } },
+  _lsSet(k,v){ try{ localStorage.setItem(k, v); }catch(e){} },
+  _lsDel(k){ try{ localStorage.removeItem(k); }catch(e){} },
+  remindKey(){ const u = this.currentUser() || {}; return 'rm_remind_' + (u.id||''); },
+  _scheduleRemind(ms){
+    clearTimeout(this._remindTimer);
+    this._remindTimer = setTimeout(()=>{ this._lsDel(this.remindKey()+'_snooze'); this._remindDone = false; this.maybeRemind(); }, Math.max(1000, ms));
+  },
+  maybeRemind(){
+    if(this._remindDone || window.__noRemind || !this.session || !window.__fsReady || this.publicGid) return;
+    const u = this.currentUser();
+    if(!u || !this.isAdmin() || !this.can('returns.add')) return;
+    const k = this.remindKey();
+    if(this._lsGet(k+'_hide')===todayStr()){ this._remindDone = true; return; }
+    const snooze = Number(this._lsGet(k+'_snooze')||0);
+    if(snooze > Date.now()){ this._remindDone = true; this._scheduleRemind(snooze - Date.now()); return; }
+    const info = this.remindInfo();
+    if(!info){ this._remindDone = true; return; }
+    this._remindDone = true;
+    const bd = document.getElementById('modalBackdrop');
+    if(bd && bd.classList.contains('open')){ this._scheduleRemind(60000); return; }   // another window is open — try again in a minute
+    this.openModal(this.remindHtml(info), 470);
+  },
+  arDays(n){ return n<=0 ? 'اليوم' : this.arCount(n, 'يوم واحد', 'يومين', 'أيام', 'يومًا'); },
+  remindInfo(){
+    const d = this.db;
+    const stores = this.allStores() ? d.stores : d.stores.filter(s=>s.id===(this.currentUser()||{}).storeId);
+    if(!stores.length) return null;
+    const today = todayStr(), monthStart = today.slice(0,8)+'01';
+    const dayDiff = (a)=> Math.round((new Date(today) - new Date(a))/864e5);
+    const last = new Map();
+    this.returnsInScope().forEach(r=>{ const x = last.get(r.storeId); if(!x || (r.date||'')>x) last.set(r.storeId, r.date||''); });
+    const stale = stores.map(s=>{ const l = last.get(s.id) || ''; return {s, last:l, days: l ? dayDiff(l) : Infinity}; })
+      .filter(x=> !x.last || x.last<monthStart || x.days>=7)
+      .sort((a,b)=> b.days-a.days || String(a.s.name).localeCompare(String(b.s.name),'ar'));
+    const lastRet = this.returnsInScope().slice().sort((a,b)=>retLineCmp(b,a))[0] || null;
+    return {stale, lastRet, total: stores.length};
+  },
+  remindHtml(info){
+    const MAX = 6;
+    const line = x=> `• <b>${esc(x.s.name)}</b> — ${!x.last ? 'لم يُسجَّل له أي مرتجع بعد'
+      : x.last < todayStr().slice(0,8)+'01' ? `لم يُسجَّل له مرتجع هذا الشهر <span class="muted">(آخر مرتجع منذ ${this.arDays(x.days)})</span>`
+      : `آخر مرتجع مُسجَّل منذ <b style="color:var(--bad);">${this.arDays(x.days)}</b>`}`;
+    const list = info.stale.slice(0, MAX).map(line);
+    if(info.stale.length>MAX) list.push(`<span class="muted">و${this.arCount(info.stale.length-MAX,'محل آخر','محلان آخران','محلات أخرى','محلًا آخر')}</span>`);
+    if(!info.stale.length) list.push('✔ جميع المحلات سُجِّل لها مرتجع خلال الأيام السبعة الأخيرة.');
+    if(info.lastRet) list.push(`• آخر مرتجع سجّلته: <b class="ret-no">${esc(fmtRetNo(info.lastRet))}</b> يوم ${esc(info.lastRet.date||'')}${info.lastRet.storeId? ' — '+esc(this.storeName(info.lastRet.storeId)||''):''}`);
+    else list.push('• لم يُسجَّل أي مرتجع حتى الآن.');
+    return `
+      <button class="modal-close" onclick="App.closeModal()">✕</button>
+      <div id="remindBox">
+        <div style="font-size:36px;text-align:center;line-height:1;">🔔</div>
+        <h3 style="text-align:center;margin:8px 0 4px;">تذكير بتسجيل المرتجعات</h3>
+        <div class="small muted" style="text-align:center;margin-bottom:12px;">سجّل الكميات التي رجعت حتى نعرف ما الذي خرج وما الذي عاد.</div>
+        <div style="background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13px;line-height:2;">${list.join('<br>')}</div>
+        <button class="btn btn-accent" style="width:100%;margin:14px 0 8px;padding:10px;" onclick="App.remindAct('now')">+ تسجيل مرتجع الآن</button>
+        <div style="display:flex;gap:8px;">
+          <button class="btn" style="flex:1;" onclick="App.remindAct('hour')">ذكّرني بعد ساعة</button>
+          <button class="btn" style="flex:1;" onclick="App.remindAct('today')">إخفاء اليوم</button>
+        </div>
+      </div>`;
+  },
+  remindAct(a){
+    const k = this.remindKey();
+    this.closeModal();
+    if(a==='hour'){ const t = Date.now()+3600*1000; this._lsSet(k+'_snooze', String(t)); this._scheduleRemind(3600*1000); }
+    else if(a==='today'){ this._lsSet(k+'_hide', todayStr()); clearTimeout(this._remindTimer); }
+    else if(a==='now'){ this.go('returns'); this.openReturnForm(); }
+  },
   tryPendingRet(){
     if(!this.pendingRet || !this.session || !window.__fsReady) return;
     const n = this.pendingRet; this.pendingRet = null;
@@ -3082,7 +3172,7 @@ const App = {
         <div class="field" style="margin:0;"><label>رقم تحويل المرتجع</label><input type="text" id="de_transfer" value="${esc(g.transferNo)}"></div>
         <div class="field" style="margin:0;"><label>ملاحظات</label><input type="text" id="de_note" value="${esc(g.note)}"></div>
       </div>
-      <div class="small muted" style="margin-top:8px;">التعديل بيتطبق على كل أصناف المرتجع ده، والمخزون بيتظبط معاه.</div>
+      <div class="small muted" style="margin-top:8px;">التعديل بيتطبق على كل أصناف المرتجع ده.</div>
       <div class="modal-actions">
         <button class="btn btn-accent" onclick="App.saveReturnDocEdit('${esc(gid)}')">حفظ التعديل</button>
         <button class="btn" onclick="App.closeModal()">إلغاء</button>
@@ -3108,7 +3198,7 @@ const App = {
   deleteReturnDoc(gid){
     if(!this.can('returns.delete')) return;
     const g = this.retGroup(gid); if(!g) return;
-    this.confirmAction(`تأكيد حذف المرتجع رقم ${fmtRetNo(g)} كله (${this.retCountTxt(g.count)})؟ المخزون هيرجع زي ما كان.`, ()=>{
+    this.confirmAction(`تأكيد حذف المرتجع رقم ${fmtRetNo(g)} كله (${this.retCountTxt(g.count)})؟`, ()=>{
       const ids = new Set(g.lines.map(l=>l.id));
       g.lines.forEach(r=>this.retStock(r, -1));
       this.db.returns = this.db.returns.filter(r=>!ids.has(r.id));
@@ -3169,8 +3259,38 @@ const App = {
       </div>
       <div class="field" id="f_reason_other_wrap" style="display:${isCustomReason?'block':'none'};">
         <label>اذكر السبب</label>
-        <input type="text" id="f_reason_other" placeholder="اكتب سبب الترجيع بالتفصيل" value="${isCustomReason?esc(editing.reason):''}" oninput="App.rfSuggestResp()">
+        <input type="text" id="f_reason_other" placeholder="اكتب سبب الترجيع بالتفصيل" value="${isCustomReason?esc(editing.reason):''}" oninput="App.rfSuggestResp();App.rfReasonHint()">
+        <div id="f_reason_hint" class="small" style="margin-top:5px;color:var(--good);"></div>
       </div>`;
+  },
+  /* tell the user that a reason he types for the first time will join the list */
+  rfReasonHint(){
+    const o = document.getElementById('f_reason_other'), h = document.getElementById('f_reason_hint');
+    if(!o || !h) return;
+    const v = o.value.trim();
+    const known = v && this.reasons().some(x=>this._arNorm(x)===this._arNorm(v));
+    h.textContent = !v ? '' : known ? 'هذا السبب موجود في القائمة بالفعل.' : `سيُضاف «${v}» إلى قائمة الأسباب تلقائيًا عند الحفظ.`;
+  },
+  /* any reason typed by hand that is not in the list yet is added to it (before «أخرى») — returns the new ones */
+  rememberReasons(list){
+    const cur = this.reasons().slice(), added = [];
+    const has = v=> cur.some(x=>this._arNorm(x)===this._arNorm(v));
+    (list||[]).forEach(v=>{
+      v = String(v||'').trim();
+      if(!v || v==='أخرى' || has(v)) return;
+      const i = cur.indexOf('أخرى');
+      if(i>=0) cur.splice(i,0,v); else cur.push(v);
+      added.push(v);
+    });
+    if(added.length){
+      this.db.settings.reasons = cur;
+      this.logActivity(`أُضيف إلى قائمة أسباب الترجيع: ${added.map(v=>'«'+v+'»').join('، ')}`);
+    }
+    return added;
+  },
+  reasonsAddedTxt(added){
+    if(!added || !added.length) return '';
+    return ` — ✔ تمت إضافة ${added.map(v=>'«'+v+'»').join('، ')} إلى قائمة الأسباب`;
   },
   /* openReturnForm()            → a new return
      openReturnForm('', gid)     → add items to an existing return
@@ -3424,6 +3544,7 @@ const App = {
       this.retStock(rec, 1);
     });
     ensureReturnNos(this.db);
+    const newReasons = this.rememberReasons(st.lines.map(l=>l.reason));
     const saved = this.db.returns.find(r=>r.gid===gid);
     const n = st.lines.length, total = st.lines.reduce((a,l)=>a+Number(l.qty||0),0);
     const shortQ = Math.round(st.lines.reduce((a,l)=>{ const x = retDiff(l); return a+(x>0?x:0); },0)*1000)/1000;
@@ -3433,7 +3554,7 @@ const App = {
     this.closeModal();
     if(this.view==='returns') this.returnsOpen = gid;
     this.refresh();
-    this.notify(doc ? `تمت إضافة ${this.retCountTxt(n)} للمرتجع رقم ${fmtRetNo(saved)} ✅` : `تم حفظ المرتجع رقم ${fmtRetNo(saved)} ✅ (${this.retCountTxt(n)})`);
+    this.notify((doc ? `تمت إضافة ${this.retCountTxt(n)} للمرتجع رقم ${fmtRetNo(saved)} ✅` : `تم حفظ المرتجع رقم ${fmtRetNo(saved)} ✅ (${this.retCountTxt(n)})`) + this.reasonsAddedTxt(newReasons));
   },
   onReturnItemSelect(){
     const itemId = document.getElementById('f_item').value;
@@ -3484,6 +3605,8 @@ const App = {
     this.retStock(r, -1);
     Object.assign(r, {itemId:l.itemId, unit:l.unit, sentQty:l.sentQty, qty:l.qty, reason:l.reason, resp:l.resp||'', expiry:l.expiry, resolution:l.resolution});
     this.retStock(r, 1);
+    const newReasons = this.rememberReasons([r.reason]);
+    if(newReasons.length) this.notify(this.reasonsAddedTxt(newReasons).trim());
     const dx = retDiff(r);
     this.logActivity(`عدّل صنف في المرتجع رقم ${fmtRetNo(r)}: ${this.itemName(r.itemId)} (${fmtNum(r.qty)}${dx? ' من '+fmtNum(retSent(r)):''}) — ${this.storeName(r.storeId)||''}`);
     this.closeModal();
@@ -3760,7 +3883,7 @@ const App = {
     st.result = res;
     btn.disabled = res.rows.length===0;
     const fields = this.MOVE_FIELDS[st.kind];
-    const colOpts = (k)=> `<option value="">— مش موجود في الملف —</option>` +
+    const colOpts = (k)=> `<option value="">— غير موجود في الملف —</option>` +
       Array.from({length:a.cols.length},(_,c)=>c).filter(c=>a.cols[c].nonEmpty).map(c=>`<option value="${c}" ${st.map[k]===c?'selected':''}>${esc(colName(c))}</option>`).join('');
     const storeOpts = (admin? d.stores : d.stores.filter(s=>s.id===st.defStore)).map(s=>`<option value="${s.id}" ${st.defStore===s.id?'selected':''}>${esc(s.name)}</option>`).join('');
     const whOpts = `<option value="">—</option>` + d.warehouses.map(w=>`<option value="${w.id}" ${st.defWh===w.id?'selected':''}>${esc(w.name)}</option>`).join('');
@@ -3818,11 +3941,12 @@ const App = {
       }
     });
     const label = st.kind==='returns' ? 'مرتجع' : 'طلبية';
+    const newReasons = st.kind==='returns' ? this.rememberReasons(res.rows.map(r=>r.reason)) : [];
     this.logActivity(`استورد ${fmtNum(res.rows.length)} ${label} من إكسيل`);
     this._moveImport = null;
     this.closeModal();
     this.refresh();
-    this.notify(`تم تسجيل ${fmtNum(res.rows.length)} ${label} من الملف ✅`);
+    this.notify(`تم تسجيل ${fmtNum(res.rows.length)} ${label} من الملف ✅` + this.reasonsAddedTxt(newReasons));
   },
 
   /* =====================================================================
@@ -3915,7 +4039,7 @@ const App = {
         <div class="field"><label>الكمية المطلوبة</label><input type="number" min="0" step="any" id="o_qty" value="${editing?editing.qty:''}"></div>
         <div class="field"><label>تاريخ الطلب</label><input type="date" id="o_date" value="${editing?editing.date:todayStr()}"></div>
       </div>
-      <div class="field"><label>المستودع المورّد (اختياري — لتحديث أرصدة المخزون تلقائيًا)</label>
+      <div class="field"><label>المستودع المورّد (اختياري)</label>
         <select id="o_wh">
           <option value="">— بدون تحديد —</option>
           ${d.warehouses.map(w=>`<option value="${w.id}" ${editing&&editing.warehouseId===w.id?'selected':''}>${w.code?'['+esc(w.code)+'] ':''}${esc(w.name)}</option>`).join('')}
@@ -3969,7 +4093,7 @@ const App = {
   /* =====================================================================
      ITEMS / STORES / WAREHOUSES / USERS  (simple master data CRUD)
   ===================================================================== */
-  itemsFilter:{q:'', unit:''},
+  itemsFilter:{q:'', unit:'', cat:''},
   inventoryFilter:{locType:'store', locId:'', q:''},
   itemsSelected: new Set(),
   toggleItemSelect(id, checked){
@@ -4004,6 +4128,8 @@ const App = {
       );
     }
     if(f.unit) rows = rows.filter(it=>(it.unit||'')===f.unit);
+    if(f.cat) rows = rows.filter(it=>(it.category||'')===(f.cat==='__none'?'':f.cat));
+    const cats = [...new Set(d.items.map(it=>it.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ar'));
     const units = [...new Set(d.items.map(it=>it.unit).filter(Boolean))].sort();
     const visibleIds = rows.map(it=>it.id);
     const allVisibleSelected = visibleIds.length>0 && visibleIds.every(id=>this.itemsSelected.has(id));
@@ -4029,26 +4155,35 @@ const App = {
           <input type="text" id="itemsSearchInput" placeholder="اكتب للبحث..." value="${esc(f.q)}" oninput="App.itemsFilter.q=this.value;App.render()">
         </div>
         <div class="field">
+          <label>التصنيف</label>
+          <select id="itemsCatFilter" onchange="App.itemsFilter.cat=this.value;App.render()">
+            <option value="">جميع التصنيفات</option>
+            ${cats.map(c=>`<option value="${esc(c)}" ${f.cat===c?'selected':''}>${esc(c)}</option>`).join('')}
+            ${d.items.some(it=>!it.category)?`<option value="__none" ${f.cat==='__none'?'selected':''}>بدون تصنيف</option>`:''}
+          </select>
+        </div>
+        <div class="field">
           <label>الوحدة</label>
           <select onchange="App.itemsFilter.unit=this.value;App.render()">
             <option value="">كل الوحدات</option>
             ${units.map(u=>`<option value="${esc(u)}" ${f.unit===u?'selected':''}>${esc(u)}</option>`).join('')}
           </select>
         </div>
-        <div class="field" style="flex:0;"><button class="btn btn-sm" onclick="App.itemsFilter={q:'',unit:''};App.render()">إلغاء الفلترة</button></div>
+        <div class="field" style="flex:0;"><button class="btn btn-sm" onclick="App.itemsFilter={q:'',unit:'',cat:''};App.render()">إلغاء الفلترة</button></div>
       </div>
 
       <div class="tbl-wrap"><table class="tbl"><thead><tr>
         <th style="width:34px;"><input type="checkbox" ${allVisibleSelected?'checked':''} data-ids='${JSON.stringify(visibleIds)}' onchange="App.toggleItemSelectAll(this.checked, JSON.parse(this.dataset.ids))"></th>
-        <th>اسم الصنف</th><th>رمز الصنف</th><th>الباركود</th><th>شد الصنف</th><th>الوحدة</th>${this.can('finance.view')?'<th>تكلفة الوحدة</th>':''}<th></th>
+        <th>اسم الصنف</th><th>رمز الصنف</th><th>الباركود</th><th>شد الصنف</th><th>التصنيف</th><th>الوحدة</th>${this.can('finance.view')?'<th>تكلفة الوحدة</th>':''}<th></th>
       </tr></thead><tbody>
-      ${rows.length===0?`<tr><td colspan="8"><div class="empty">${d.items.length===0?'لا توجد أصناف بعد':'لا توجد نتائج مطابقة للبحث/الفلترة'}</div></td></tr>`:
+      ${rows.length===0?`<tr><td colspan="9"><div class="empty">${d.items.length===0?'لا توجد أصناف بعد':'لا توجد نتائج مطابقة للبحث/الفلترة'}</div></td></tr>`:
       rows.map(it=>`<tr>
         <td><input type="checkbox" ${this.itemsSelected.has(it.id)?'checked':''} onchange="App.toggleItemSelect('${it.id}', this.checked)"></td>
         <td>${esc(it.name)}</td>
         <td>${esc(it.code||'—')}</td>
         <td>${esc(it.barcode||'—')}</td>
         <td>${esc(it.packSize||'—')}</td>
+        <td>${it.category?`<span class="tag info">${esc(it.category)}</span>`:'<span class="muted">—</span>'}</td>
         <td>${esc(it.unit||'—')}</td>
         ${this.can('finance.view')?`<td>${it.cost?fmtNum(it.cost):'—'}</td>`:''}
         <td>
@@ -4073,6 +4208,8 @@ const App = {
         <div class="field"><label>شد الصنف (عدد القطع بالكرتونة/الشِد)</label><input type="text" id="it_pack" placeholder="مثال: 24 قطعة" value="${editing?esc(editing.packSize||''):''}"></div>
         <div class="field"><label>وحدة القياس</label><input type="text" id="it_unit" placeholder="مثال: كرتونة" value="${editing?esc(editing.unit||''):''}"></div>
       </div>
+      <div class="field"><label>التصنيف</label><input type="text" id="it_cat" list="it_cat_list" placeholder="مثال: مخبوزات" value="${editing?esc(editing.category||''):''}">
+        <datalist id="it_cat_list">${[...new Set(this.db.items.map(i=>i.category).filter(Boolean))].map(c=>`<option value="${esc(c)}">`).join('')}</datalist></div>
       ${this.can('finance.edit')? `<div class="field"><label>تكلفة الوحدة (اختياري — تُستخدم في تقارير التكاليف والخسائر)</label><input type="number" min="0" step="any" id="it_cost" value="${editing&&editing.cost?editing.cost:''}"></div>`
         : (this.can('finance.view') ? `<div class="field"><label>تكلفة الوحدة</label><input type="text" value="${editing&&editing.cost?fmtNum(editing.cost):'—'}" disabled></div>` : '')}
       <div class="modal-actions">
@@ -4086,15 +4223,16 @@ const App = {
     const barcode=document.getElementById('it_barcode').value.trim();
     const packSize=document.getElementById('it_pack').value.trim();
     const unit=document.getElementById('it_unit').value.trim();
+    const catEl=document.getElementById('it_cat'); const category = catEl? catEl.value.trim() : '';
     const costEl = document.getElementById('it_cost');
     if(!name){this.notify('اكتب اسم الصنف.');return;}
     if(id){
       const it = this.db.items.find(i=>i.id===id);
-      Object.assign(it,{name,code,barcode,packSize,unit});
+      Object.assign(it,{name,code,barcode,packSize,unit,category});
       if(costEl) it.cost = parseFloat(costEl.value)||0;
       this.logActivity(`عدّل صنف: ${name}`);
     } else {
-      this.db.items.push({id:uid(),name,code,barcode,packSize,unit,cost: costEl?(parseFloat(costEl.value)||0):0});
+      this.db.items.push({id:uid(),name,code,barcode,packSize,unit,category,cost: costEl?(parseFloat(costEl.value)||0):0});
       this.logActivity(`أضاف صنف جديد: ${name}`);
     }
     this.closeModal(); this.refresh();
@@ -4473,9 +4611,10 @@ const App = {
       );
     }
     if(f.unit) rows = rows.filter(it=>(it.unit||'')===f.unit);
+    if(f.cat) rows = rows.filter(it=>(it.category||'')===(f.cat==='__none'?'':f.cat));
     const wsData = [
-      ['اسم الصنف','رمز الصنف','الباركود','شد الصنف','الوحدة'],
-      ...rows.map(it=>[it.name, it.code||'', it.barcode||'', it.packSize||'', it.unit||'']),
+      ['اسم الصنف','رمز الصنف','الباركود','شد الصنف','التصنيف','الوحدة'],
+      ...rows.map(it=>[it.name, it.code||'', it.barcode||'', it.packSize||'', it.category||'', it.unit||'']),
     ];
     this.exportXLSXMultiSheet([
       {name:'معلومات السحب', rows: this.reportPullStampRows('قائمة الأصناف المسجلة')},
@@ -4486,12 +4625,12 @@ const App = {
   /* ---------------- BULK IMPORT ITEMS FROM EXCEL ---------------- */
   downloadItemsTemplate(){
     const wsData = [
-      ['اسم الصنف','رمز الصنف','الباركود','شد الصنف','الوحدة'],
-      ['بسكويت شوكولاتة 200جم','IT-1001','6221234567890','24 قطعة','كرتونة'],
-      ['عصير مانجو 1 لتر','IT-1002','6229876543210','12 قطعة','كرتونة'],
+      ['اسم الصنف','رمز الصنف','الباركود','شد الصنف','التصنيف','الوحدة'],
+      ['بسكويت شوكولاتة 200جم','IT-1001','6221234567890','24 قطعة','بسكويت','كرتونة'],
+      ['عصير مانجو 1 لتر','IT-1002','6229876543210','12 قطعة','عصائر','كرتونة'],
     ];
     const ws = XLSX.utils.aoa_to_sheet(wsData);
-    ws['!cols'] = [{wch:32},{wch:14},{wch:18},{wch:16},{wch:14}];
+    ws['!cols'] = [{wch:32},{wch:14},{wch:18},{wch:16},{wch:16},{wch:14}];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'الأصناف');
     const out = XLSX.write(wb, {bookType:'xlsx', type:'array'});
@@ -4506,6 +4645,7 @@ const App = {
     {k:'code',     label:'رمز الصنف (الكود)'},
     {k:'barcode',  label:'الباركود'},
     {k:'packSize', label:'شد الصنف'},
+    {k:'category', label:'التصنيف'},
     {k:'unit',     label:'الوحدة'},
     {k:'cost',     label:'تكلفة الوحدة'},
   ],
@@ -4514,7 +4654,7 @@ const App = {
     const n = this._arNorm(h);
     if(!n) return null;
     const any = (ws)=> ws.some(w=>n.includes(this._arNorm(w)));
-    if(any(['تصنيف','فئه','مجموعه','قسم','category','group','class'])) return null;
+    if(any(['تصنيف','فئه','مجموعه','قسم','نوع','category','group','class','family','type'])) return 'category';
     if(any(['باركود','بار كود','barcode','bar code','ean','upc'])) return 'barcode';
     if(any(['كود','رمز','رقم الصنف','رقم المنتج','رقم الماده','code','sku','item no','item number','article'])) return 'code';
     if(any(['وحده','unit','uom'])) return 'unit';
@@ -4538,12 +4678,49 @@ const App = {
     const header = hdrIdx>=0 ? (aoa[hdrIdx]||[]).map(c=>this._cellStr(c).trim()) : [];
     const data = aoa.slice(hdrIdx+1).filter(r=>r && r.some(c=>String(c).trim()!==''));
     const nCols = Math.max(header.length, ...data.slice(0,300).map(r=>r.length), 0);
-    let map = bestMap;
-    if(!map){ // no recognizable header: fall back to the classic order name, code, barcode, pack, unit
-      map = {name:0, code:1, barcode:2, packSize:3, unit:4};
-      Object.keys(map).forEach(k=>{ if(map[k]>=nCols) delete map[k]; });
+    const map = Object.assign({}, bestMap||{});
+    // any column whose header was not recognised (or that has no header at all) is identified from its contents
+    const guessed = this._guessItemColumns(data, nCols, map);
+    Object.assign(map, guessed);
+    return {hdrIdx, header, data, nCols, map, guessed: Object.keys(guessed), score: hdrIdx>=0? best : 0};
+  },
+  /* recognise item columns by what is in them: 8–14 digit numbers → barcode, short codes → item code,
+     long text → name, small whole numbers / "24 قطعة" → pack, few repeated words → unit or category */
+  _guessItemColumns(data, nCols, taken){
+    const used = new Set(Object.values(taken));
+    const out = {};
+    const prof = [];
+    const UNIT_WORDS = ['كرتونه','كرتون','قطعه','علبه','كيس','عبوه','لتر','كيلو','كجم','جرام','حبه','باكو','شد','درزن','دسته','صندوق','زجاجه','box','pcs','pc','ctn','kg','ea','each','pack'];
+    for(let c=0;c<nCols;c++){
+      if(used.has(c)) continue;
+      const vals = data.slice(0,400).map(r=>this._cellStr(r[c]).trim()).filter(v=>v!=='' && v!=='#');
+      if(vals.length < Math.max(1, Math.min(3, data.length*0.3))) continue;
+      const n = vals.length, uniq = new Set(vals.map(v=>this._arNorm(v))).size;
+      const frac = re=> vals.filter(v=>re.test(v)).length / n;
+      const digits = v=> v.replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+      const barcodeF = vals.filter(v=>/^\d{8,14}$/.test(digits(v).replace(/\.0+$/,''))).length/n;
+      const intF = frac(/^[\d٠-٩]{1,3}$/);
+      const packF = frac(/^[\d٠-٩]{1,4}\s*[x×*]?\s*[\u0600-\u06FFa-zA-Z]+$|^[\d٠-٩]{1,4}\s*[x×*]\s*[\d٠-٩]{1,4}$/);
+      const decF = frac(/^[\d٠-٩]+[.,][\d٠-٩]+$/);
+      const codeF = frac(/^(?=.*\d)[A-Za-z0-9\-_\/.]{2,16}$/);
+      const avgLen = vals.reduce((a,v)=>a+v.length,0)/n;
+      const letterF = frac(/[\u0600-\u06FFa-zA-Z]{2,}/);
+      const unitF = vals.filter(v=>UNIT_WORDS.includes(this._arNorm(v).toLowerCase())).length/n;
+      const runF = frac(/^[\d٠-٩]+$/) && (()=>{ const nums=vals.map(v=>+digits(v)); return nums.every((x,i)=>i===0||x===nums[i-1]+1); })();
+      prof.push({c, n, uniq, barcodeF, intF, packF, decF, codeF, avgLen, letterF, unitF, runF});
     }
-    return {hdrIdx, header, data, nCols, map, score: hdrIdx>=0? best : 0};
+    const take = (k, score)=>{ if(out[k]!=null || taken[k]!=null) return;
+      let best=null, bs=0; prof.forEach(p=>{ if(used.has(p.c)) return; const sc=score(p); if(sc>bs){ bs=sc; best=p; } });
+      if(best){ out[k]=best.c; used.add(best.c); } };
+    prof.forEach(p=>{ if(p.runF) used.add(p.c); });          // a 1,2,3… serial column is just a row number
+    take('barcode',  p=> p.barcodeF>=0.6 ? p.barcodeF : 0);
+    take('name',     p=> p.letterF>=0.6 && p.uniq>=p.n*0.6 ? p.avgLen : 0);
+    take('unit',     p=> p.unitF>=0.6 ? p.unitF : 0);
+    take('code',     p=> p.codeF>=0.6 && p.uniq>=p.n*0.8 ? p.codeF : 0);
+    take('packSize', p=> (p.intF+p.packF)>=0.6 ? (p.intF+p.packF) : 0);
+    take('category', p=> p.letterF>=0.6 && p.avgLen<=25 && (p.uniq<p.n || p.n<=30) ? 1+(p.n-p.uniq)/p.n : 0);   // the other, short text column: groups repeat
+    take('cost',     p=> p.decF>=0.6 ? p.decF : 0);
+    return out;
   },
   openImportItems(){
     if(!this.can('items.import')){ this.notify('مش مسموح لحسابك بالاستيراد — كلّم المدير.'); return; }
@@ -4552,9 +4729,9 @@ const App = {
       <button class="modal-close" onclick="App.closeModal()">✕</button>
       <h3>📥 استيراد الأصناف من إكسيل</h3>
       <div class="help-box" style="margin-bottom:14px;">
-        ارفع <b>أي شيت أصناف عندك زي ما هو</b> — مش لازم ترتيب معيّن للأعمدة. البرنامج بيقرا عناوين الأعمدة
-        (زي "إسم الصنف" / "كود الصنف" / "BarCode" / "الشد" / "الوحدة") ويحط كل عمود في مكانه، وتقدر تراجع وتعدّل قبل الحفظ.
-        الأعمدة الزيادة زي "التصنيف" أو "#" بتتساب.
+        ارفع <b>أي ملف أصناف كما هو</b> دون الحاجة إلى ترتيب معيّن للأعمدة. يتعرّف البرنامج على كل عمود من عنوانه
+        (مثل "اسم الصنف" / "كود الصنف" / "BarCode" / "الشد" / "التصنيف" / "الوحدة")، وإذا كان العمود بلا عنوان يتعرّف عليه من محتواه
+        (فالأرقام المكوّنة من ١٣ خانة باركود مثلًا). ستظهر لك المطابقة لمراجعتها قبل الحفظ.
       </div>
       <div class="field"><label>ملف الإكسيل (xlsx / xls / csv)</label>
         <input type="file" id="itemsFile" accept=".xlsx,.xls,.xlsm,.csv" onchange="App.readItemsFile()"></div>
@@ -4602,7 +4779,7 @@ const App = {
     const out = {add:[], update:[], skipped:0, bad:0};
     const seen = new Set();
     a.data.forEach(r=>{
-      const rec = {name:get(r,'name'), code:get(r,'code'), barcode:get(r,'barcode'), packSize:get(r,'packSize'), unit:get(r,'unit')};
+      const rec = {name:get(r,'name'), code:get(r,'code'), barcode:get(r,'barcode'), packSize:get(r,'packSize'), category:get(r,'category'), unit:get(r,'unit')};
       const costTxt = get(r,'cost'); const cost = costTxt===''? null : this._parseQty(costTxt);
       if(!rec.name){ out.skipped++; return; }
       // a "name" that is only a number / "#" means the columns are misplaced — never save it as an item
@@ -4634,26 +4811,26 @@ const App = {
       <div class="card" style="padding:10px 12px;margin:6px 0 10px;">
         ${st.book.length>1? `<div class="field"><label>الشيت</label><select onchange="App._itemsImport.sheetIdx=+this.value;App._itemsImport.map=Object.assign({},App._itemsImport.book[+this.value].a.map);App.renderItemsImportPreview()">
           ${st.book.map((s,i)=>`<option value="${i}" ${i===st.sheetIdx?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div>`:''}
-        <div style="font-weight:700;font-size:13px;margin-bottom:6px;">كل خانة في البرنامج هتتملى من أنهي عمود (اتحدد تلقائيًا — غيّر لو في حاجة غلط):</div>
+        <div style="font-weight:700;font-size:13px;margin-bottom:6px;">يُملأ كل حقل في البرنامج من العمود المحدد له (حُدِّد تلقائيًا، ويمكنك تغييره عند الحاجة):</div>
         <div class="form-row" style="grid-template-columns:1fr 1fr 1fr;">
-          ${this.ITEM_FIELDS.map(f=>`<div class="field" style="margin-bottom:6px;"><label>${f.label}${f.required?' *':''}</label>
+          ${this.ITEM_FIELDS.map(f=>`<div class="field" style="margin-bottom:6px;"><label>${f.label}${f.required?' *':''}${(a.guessed||[]).includes(f.k)&&st.map[f.k]===a.map[f.k]?' <span class="small" style="color:var(--accent);font-weight:400;">(من المحتوى)</span>':''}</label>
             <select onchange="App._itemsImport.map['${f.k}']=this.value===''?null:+this.value;App.renderItemsImportPreview()">${colOpts(f.k)}</select></div>`).join('')}
         </div>
         <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:4px;" class="small">
-          <span>لو الصنف موجود قبل كده:</span>
-          <label style="display:inline-flex;gap:5px;align-items:center;cursor:pointer;"><input type="radio" name="itExisting" style="width:auto;" ${st.existing==='fill'?'checked':''} onchange="App._itemsImport.existing='fill';App.renderItemsImportPreview()"> كمّل البيانات الناقصة بس</label>
-          <label style="display:inline-flex;gap:5px;align-items:center;cursor:pointer;"><input type="radio" name="itExisting" style="width:auto;" ${st.existing==='overwrite'?'checked':''} onchange="App._itemsImport.existing='overwrite';App.renderItemsImportPreview()"> حدّث بياناته كلها من الملف</label>
+          <span>إذا كان الصنف مسجّلًا من قبل:</span>
+          <label style="display:inline-flex;gap:5px;align-items:center;cursor:pointer;"><input type="radio" name="itExisting" style="width:auto;" ${st.existing==='fill'?'checked':''} onchange="App._itemsImport.existing='fill';App.renderItemsImportPreview()"> أكمِل البيانات الناقصة فقط</label>
+          <label style="display:inline-flex;gap:5px;align-items:center;cursor:pointer;"><input type="radio" name="itExisting" style="width:auto;" ${st.existing==='overwrite'?'checked':''} onchange="App._itemsImport.existing='overwrite';App.renderItemsImportPreview()"> حدِّث جميع بياناته من الملف</label>
         </div>
       </div>
-      ${st.map.name==null? `<div class="help-box" style="color:var(--bad);margin-bottom:10px;">لازم تختار عمود "اسم الصنف".</div>`:''}
+      ${st.map.name==null? `<div class="help-box" style="color:var(--bad);margin-bottom:10px;">يجب اختيار عمود «اسم الصنف».</div>`:''}
       <div class="grid grid-3" style="margin-bottom:10px;">
-        <div class="stat accent"><div class="n">${fmtNum(res.add.length)}</div><div class="l">صنف جديد هيتضاف</div></div>
-        <div class="stat"><div class="n">${fmtNum(res.update.length)}</div><div class="l">صنف موجود ${st.existing==='fill'?'هتتكمّل بياناته':'هتتحدث بياناته'}</div></div>
-        <div class="stat ${res.bad?'warn':''}"><div class="n">${fmtNum(res.bad + res.skipped)}</div><div class="l">صف اتساب (فاضي / مكرر / اسمه رقم)</div></div>
+        <div class="stat accent"><div class="n">${fmtNum(res.add.length)}</div><div class="l">صنف جديد سيُضاف</div></div>
+        <div class="stat"><div class="n">${fmtNum(res.update.length)}</div><div class="l">صنف موجود ${st.existing==='fill'?'ستُستكمل بياناته':'ستُحدَّث بياناته'}</div></div>
+        <div class="stat ${res.bad?'warn':''}"><div class="n">${fmtNum(res.bad + res.skipped)}</div><div class="l">صف تم تجاهله (فارغ / مكرر / اسمه رقم)</div></div>
       </div>
-      ${sample.length? `<div class="small muted" style="margin-bottom:4px;">معاينة — كده الأصناف هتظهر في البرنامج:</div>
-      <div class="tbl-wrap"><table class="tbl"><thead><tr><th>اسم الصنف</th><th>رمز الصنف</th><th>الباركود</th><th>شد الصنف</th><th>الوحدة</th></tr></thead><tbody>
-        ${sample.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.code||'—')}</td><td>${esc(r.barcode||'—')}</td><td>${esc(r.packSize||'—')}</td><td>${esc(r.unit||'—')}</td></tr>`).join('')}
+      ${sample.length? `<div class="small muted" style="margin-bottom:4px;">معاينة — هكذا ستظهر الأصناف في البرنامج:</div>
+      <div class="tbl-wrap"><table class="tbl"><thead><tr><th>اسم الصنف</th><th>رمز الصنف</th><th>الباركود</th><th>شد الصنف</th><th>التصنيف</th><th>الوحدة</th></tr></thead><tbody>
+        ${sample.map(r=>`<tr><td>${esc(r.name)}</td><td>${esc(r.code||'—')}</td><td>${esc(r.barcode||'—')}</td><td>${esc(r.packSize||'—')}</td><td>${esc(r.category||'—')}</td><td>${esc(r.unit||'—')}</td></tr>`).join('')}
       </tbody></table></div>`:''}
     `;
   },
@@ -4662,13 +4839,13 @@ const App = {
     const res = st && st.result;
     if(!res) return;
     res.add.forEach(({rec,cost})=>{
-      this.db.items.push({id:uid(), name:rec.name, code:rec.code, barcode:rec.barcode, packSize:rec.packSize, unit:rec.unit, cost: cost!=null&&!isNaN(cost)? cost : 0});
+      this.db.items.push({id:uid(), name:rec.name, code:rec.code, barcode:rec.barcode, packSize:rec.packSize, category:rec.category, unit:rec.unit, cost: cost!=null&&!isNaN(cost)? cost : 0});
     });
     const over = st.existing==='overwrite';
     let changed = 0;
     res.update.forEach(({item,rec,cost})=>{
       let ch = false;
-      ['name','code','barcode','packSize','unit'].forEach(k=>{
+      ['name','code','barcode','packSize','category','unit'].forEach(k=>{
         if(st.map[k]==null || !rec[k]) return;
         if(over ? item[k]!==rec[k] : !item[k]){ item[k] = rec[k]; ch = true; }
       });
@@ -4679,7 +4856,7 @@ const App = {
     this._itemsImport = null;
     this.closeModal();
     this.refresh();
-    this.notify(`تم: ${fmtNum(res.add.length)} صنف جديد اتضاف، و${fmtNum(changed)} صنف موجود اتحدّثت بياناته ✅`);
+    this.notify(`تم: إضافة ${fmtNum(res.add.length)} صنف جديد، وتحديث بيانات ${fmtNum(changed)} صنف موجود ✅`);
   },
 
   /* ---------------- CLEANUP: items saved with misplaced columns by the old importer ---------------- */
@@ -4923,8 +5100,6 @@ const App = {
     if(perms.reports && perms.reports.view) chips.push('التقارير');
     if(perms.items && perms.items.edit) chips.push('إدارة الأصناف');
     else if(perms.items && perms.items.view) chips.push('عرض الأصناف');
-    if(perms.inventory && perms.inventory.edit) chips.push('تعديل المخزون');
-    else if(perms.inventory && perms.inventory.view) chips.push('عرض المخزون');
     if(perms.stores && perms.stores.edit) chips.push('إدارة المحلات');
     else if(perms.stores && perms.stores.view) chips.push('عرض المحلات');
     if(perms.warehouses && perms.warehouses.edit) chips.push('إدارة المستودعات');
@@ -5351,11 +5526,11 @@ const App = {
       {id:'custom', label:'تقرير شامل (PDF / إكسيل)'},
       {id:'record', label:'🔍 سجل المرتجعات والبحث بالرقم'},
       {id:'diffs', label:'⚖ الفروقات والمسؤولية'},
+      {id:'ret-analysis', label:'🧭 تحليل المرتجعات المفصّل'},
       {id:'item-period', label:'مقارنة فترات لصنف'},
       {id:'store', label:'تقرير حسب المحل'},
       {id:'branch-perf', label:'🏆 أداء الفروع'},
       {id:'movers', label:'🔥 الأكثر والأقل ترجيعًا'},
-      {id:'stock', label:'📦 المخزون والنواقص'},
       {id:'orders-vs-returns', label:'الطلبيات مقابل المرتجعات'},
       {id:'expiry', label:'تقرير الصلاحية'},
       ...(this.can('finance.view')? [{id:'costs', label:'💰 التكاليف والخسائر'}] : []),
@@ -5388,7 +5563,7 @@ const App = {
       case 'store': return this.reportByStore();
       case 'branch-perf': return this.reportBranchPerformance();
       case 'movers': return this.reportMovers();
-      case 'stock': return this.reportStock();
+      case 'ret-analysis': return this.reportRetAnalysis();
       case 'orders-vs-returns': return this.reportOrdersVsReturns();
       case 'expiry': return this.reportExpiry();
       case 'costs': return this.can('finance.view') ? this.reportCostsAndLosses() : '<div class="empty">لا تملك صلاحية عرض هذا التقرير</div>';
@@ -7359,6 +7534,164 @@ service cloud.firestore {
   /* ---------------- DIFFERENCES & RESPONSIBILITY (form quantity vs. what the warehouse received; who is to blame) ---------------- */
   rp_diffs:{store:'', wh:'', from:'', to:'', limit:200},
   resetDiffsFilter(){ this.rp_diffs = {store:'', wh:'', from:'', to:'', limit:200}; this.render(); },
+  /* ---------------- DETAILED RETURNS ANALYSIS (one row per item in each store: what it ordered vs what it sent back) ---------------- */
+  rp_ana:{store:'', item:'', cat:'', from:'', to:'', sel:'', limit:200},
+  resetAnaFilter(){ this.rp_ana = {store:'', item:'', cat:'', from:'', to:'', sel:'', limit:200}; this.reReport(); },
+  /* Arabic counted noun: 1 / 2 / 3–10 / 11+ */
+  arCount(n, one, two, few, many){
+    n = Number(n)||0;
+    if(n===1) return one; if(n===2) return two;
+    return fmtNum(n) + ' ' + (n>=3 && n<=10 ? few : many);
+  },
+  /* a returned line counts as "near expiry" when it came back expired or inside the alert window, or its reason says so */
+  anaNearExp(r){
+    if(r.expiry && r.date){ const dd = (new Date(r.expiry) - new Date(r.date))/864e5; if(!isNaN(dd) && dd<=this.expiryAlertDays()) return true; }
+    return /صلاحي|انتهاء|منتهي/.test(r.reason||'');
+  },
+  anaData(){
+    const d = this.db, st = this.rp_ana, u = this.currentUser(), r3 = x=>Math.round(x*1000)/1000;
+    const itemById = new Map(d.items.map(i=>[i.id,i]));
+    const itemOk = id=>{
+      if(st.item && id!==st.item) return false;
+      if(st.cat){ const it = itemById.get(id); const c = (it && it.category) || ''; if(c !== (st.cat==='__none' ? '' : st.cat)) return false; }
+      return true;
+    };
+    const inRange = x=> (!st.from || (x.date||'')>=st.from) && (!st.to || (x.date||'')<=st.to);
+    const retsAll = this.returnsInScope().filter(r=>inRange(r) && itemOk(r.itemId));
+    const rets = st.store ? retsAll.filter(r=>r.storeId===st.store) : retsAll;
+    let ords = (this.allStores() ? d.orders : d.orders.filter(o=>this.inUserScope(o,u))).filter(o=>inRange(o) && itemOk(o.itemId));
+    if(st.store) ords = ords.filter(o=>o.storeId===st.store);
+    const storesOfItem = new Map();               // item → stores it came back from (ignores the store filter)
+    retsAll.forEach(r=>{ let s = storesOfItem.get(r.itemId); if(!s){ s = new Set(); storesOfItem.set(r.itemId, s); } s.add(r.storeId); });
+    const pairs = new Map();
+    const pairOf = (storeId, itemId)=>{ const k = storeId+'|'+itemId; let p = pairs.get(k);
+      if(!p){ p = {key:k, storeId, itemId, oTimes:0, oQty:0, lastOrder:'', orders:[], lines:[], gids:new Set(), rQty:0, short:0, near:0, reasons:{}}; pairs.set(k,p); } return p; };
+    ords.forEach(o=>{ const p = pairOf(o.storeId, o.itemId); p.oTimes++; p.oQty += Number(o.qty||0); p.orders.push(o); if((o.date||'')>p.lastOrder) p.lastOrder = o.date||''; });
+    rets.forEach(r=>{ const p = pairOf(r.storeId, r.itemId); p.lines.push(r); p.gids.add(r.gid||r.id); p.rQty += retRecv(r);
+      const x = retDiff(r); if(x>0) p.short += x; if(this.anaNearExp(r)) p.near++;
+      const k = r.reason||'—'; p.reasons[k] = (p.reasons[k]||0) + retRecv(r); });
+    const SLOW = /فائض|بطء|بطيء|زائد|ركود/;
+    const rows = Array.from(pairs.values()).filter(p=>p.lines.length).map(p=>{
+      p.oQty = r3(p.oQty); p.rQty = r3(p.rQty); p.short = r3(p.short);
+      p.nRet = p.gids.size; p.nLines = p.lines.length;
+      p.pct = p.oQty>0 ? p.rQty/p.oQty*100 : null;
+      p.topReason = Object.entries(p.reasons).sort((a,b)=>b[1]-a[1])[0][0];
+      p.nearMost = p.near>=2 && p.near >= Math.ceil(p.nLines*0.6);
+      p.slowMost = p.lines.filter(l=>SLOW.test(l.reason||'')).length >= Math.max(2, Math.ceil(p.nLines*0.6));
+      p.storesN = (storesOfItem.get(p.itemId)||new Set()).size;
+      if(p.nRet>=2 && p.oTimes>=p.nRet && (p.nearMost || p.slowMost)) p.v = 'over';
+      else if(p.pct!=null && p.pct>=20) p.v = 'excess';
+      else if(p.nRet>=2 || (p.pct!=null && p.pct>=10)) p.v = 'watch';
+      else p.v = 'ok';
+      p.lines.sort((a,b)=>retLineCmp(a,b));
+      return p;
+    });
+    const RANK = {over:0, excess:1, watch:2, ok:3};
+    rows.sort((a,b)=>RANK[a.v]-RANK[b.v] || b.rQty-a.rQty || (b.pct||0)-(a.pct||0));
+    const totR = r3(rets.reduce((a,r)=>a+retRecv(r),0)), totO = r3(ords.reduce((a,o)=>a+Number(o.qty||0),0));
+    return {rows, totR, totO, nRet: new Set(rets.map(r=>r.gid||r.id)).size, nStores: new Set(rets.map(r=>r.storeId)).size,
+      pct: totO>0 ? totR/totO*100 : null, follow: rows.filter(p=>p.v==='over'||p.v==='excess').length};
+  },
+  anaVerdictHtml(v){
+    return ({over:'<span class="tag bad">⚠ يطلب أكثر من حاجته</span>', excess:'<span class="tag bad">⚠ كمية زائدة</span>',
+      watch:'<span class="tag warn">مراقبة</span>', ok:'<span class="tag good">طبيعي</span>'})[v] || '';
+  },
+  anaPct(p){ return p==null ? '—' : fmtNum(Math.round(p*10)/10)+'٪'; },
+  anaPanelHtml(p){
+    const d = this.db, it = d.items.find(i=>i.id===p.itemId) || {}, unit = it.unit || '';
+    const evs = [];
+    evs.push(p.oTimes
+      ? `<div class="ana-ev"><b>طُلب ${this.arCount(p.oTimes,'مرة واحدة','مرتين','مرات','مرة')}</b> — ${fmtNum(p.oQty)} ${esc(unit)}<small>آخر طلبية ${esc(p.lastOrder||'—')}</small></div>`
+      : `<div class="ana-ev"><b>لا توجد طلبيات مسجّلة</b><small>لهذا الصنف في هذا المحل خلال الفترة المحددة</small></div>`);
+    p.lines.forEach(r=>{
+      const x = retDiff(r), near = this.anaNearExp(r);
+      const bits = [esc(r.date||''), esc(r.reason||'—')];
+      if(r.expiry) bits.push(`الصلاحية ${esc(r.expiry)}${near? ' <span class="tag bad" style="padding:1px 7px;">قريبة الانتهاء</span>':''}`);
+      if(x>0) bits.push(`<span style="color:var(--bad);">عجز ${fmtNum(x)}</span>`); else if(x<0) bits.push(`زيادة ${fmtNum(-x)}`);
+      evs.push(`<div class="ana-ev r"><b>المرتجع <a class="ret-no" href="#" onclick="App.openReturnDetails('${esc(r.gid||r.id)}');return false;" title="عرض تفاصيل المرتجع">${esc(fmtRetNo(r))}</a></b> — ${fmtNum(retRecv(r))} ${esc(this.returnUnit(r)||unit)}<small>${bits.join(' • ')}</small></div>`);
+    });
+    let flag;
+    if(p.v==='over') flag = `<div class="ana-flag bad">⚠<div><b>يحتاج متابعة:</b> المحل يطلب هذا الصنف كثيرًا (${this.arCount(p.oTimes,'مرة واحدة','مرتين','مرات','مرة')})، وفي كل مرة تقريبًا يُرجع منه كمية ${p.nearMost?'قريبة الانتهاء':'فائضة عن حاجته'}، أي أنه يطلب أكثر مما يبيع.<br><span class="ana-sug">اقتراح: تقليل كمية الطلب لهذا الصنف في هذا المحل.</span></div></div>`;
+    else if(p.v==='excess') flag = `<div class="ana-flag bad">⚠<div><b>كمية زائدة:</b> المرتجع يمثّل ${this.anaPct(p.pct)} مما طلبه المحل من هذا الصنف.<br><span class="ana-sug">اقتراح: مراجعة الكمية في الطلبية القادمة.</span></div></div>`;
+    else if(p.v==='watch') flag = `<div class="ana-flag warn">●<div><b>للمراقبة:</b> ${p.nRet>=2 ? `تكرّر إرجاع الصنف من هذا المحل (${this.arCount(p.nRet,'مرتجع واحد','مرتجعين','مرتجعات','مرتجعًا')})` : `نسبة المرتجع ${this.anaPct(p.pct)} من المطلوب`}. يُنصح بمتابعة الطلبيات القادمة.</div></div>`;
+    else flag = `<div class="ana-flag good">✔<div><b>طبيعي:</b> لا توجد ملاحظات على هذا الصنف في هذا المحل.</div></div>`;
+    const notes = [];
+    if(p.short>0) notes.push(`يوجد عجز ${fmtNum(p.short)} بين كمية نموذج المحل والكمية المستلمة في المستودع.`);
+    if(!p.oTimes) notes.push('لا يمكن حساب النسبة لعدم وجود طلبيات مسجّلة — سجّل الطلبيات من تبويب «الطلبيات».');
+    return `<div class="card ana-side">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;">
+        <b style="font-size:15px;">${esc(it.name||'—')} ← <span class="ret-from">${esc(this.storeName(p.storeId)||'—')}</span></b>
+        <button class="icon-btn no-print" title="إغلاق" onclick="App.rp_ana.sel='';App.reReport()">✕</button>
+      </div>
+      <div class="small muted" style="margin:4px 0 12px;">رجع الصنف من <b style="color:var(--ink);">${this.arCount(p.storesN,'محل واحد','محلين','محلات','محلًا')}</b> • من هذا المحل <b style="color:var(--ink);">${this.arCount(p.nLines,'مرة واحدة','مرتين','مرات','مرة')}</b> في <b style="color:var(--ink);">${this.arCount(p.nRet,'مرتجع واحد','مرتجعين','مرتجعات','مرتجعًا')}</b></div>
+      <div class="ana-tl">${evs.join('')}</div>
+      ${flag}
+      ${notes.map(n=>`<div class="small muted" style="margin-top:8px;">• ${n}</div>`).join('')}
+    </div>`;
+  },
+  _anaEscBound: false,
+  reportRetAnalysis(){
+    if(!this._anaEscBound){ this._anaEscBound = true; document.addEventListener('keydown', e=>{ if(e.key==='Escape' && this.rp_ana.sel && this.view==='reports' && this.reportsTab==='ret-analysis' && !document.getElementById('modalBackdrop').classList.contains('open')){ this.rp_ana.sel=''; this.reReport(); } }); }
+    const d = this.db, st = this.rp_ana;
+    const A = this.anaData();
+    const sel = st.sel ? A.rows.find(p=>p.key===st.sel) : null;
+    if(st.sel && !sel) st.sel = '';
+    const shown = A.rows.slice(0, st.limit||200);
+    const cats = [...new Set(d.items.map(i=>i.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'ar'));
+    const items = d.items.slice().sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'ar'));
+    const any = st.store||st.item||st.cat||st.from||st.to;
+    return `
+    <div class="card">
+      <div class="ana-filters">
+        ${this.allStores()? `<div class="field" style="margin:0;"><label>المحل</label>
+          <select id="anaStore" onchange="App.rp_ana.store=this.value;App.rp_ana.sel='';App.reReport()"><option value="">جميع المحلات</option>${d.stores.map(s=>`<option value="${esc(s.id)}" ${st.store===s.id?'selected':''}>${esc(s.name)}</option>`).join('')}</select></div>` : ''}
+        <div class="field" style="margin:0;"><label>الصنف</label>
+          <select id="anaItem" onchange="App.rp_ana.item=this.value;App.rp_ana.sel='';App.reReport()"><option value="">جميع الأصناف</option>${items.map(i=>`<option value="${esc(i.id)}" ${st.item===i.id?'selected':''}>${esc(i.name)}</option>`).join('')}</select></div>
+        <div class="field" style="margin:0;"><label>التصنيف</label>
+          <select id="anaCat" onchange="App.rp_ana.cat=this.value;App.rp_ana.sel='';App.reReport()"><option value="">جميع التصنيفات</option>${cats.map(c=>`<option value="${esc(c)}" ${st.cat===c?'selected':''}>${esc(c)}</option>`).join('')}${d.items.some(i=>!i.category)?`<option value="__none" ${st.cat==='__none'?'selected':''}>بدون تصنيف</option>`:''}</select></div>
+        <div class="field" style="margin:0;"><label>من تاريخ</label><input type="date" value="${esc(st.from)}" onchange="App.rp_ana.from=this.value;App.reReport()"></div>
+        <div class="field" style="margin:0;"><label>إلى تاريخ</label><input type="date" value="${esc(st.to)}" onchange="App.rp_ana.to=this.value;App.reReport()"></div>
+      </div>
+      ${any? `<div style="margin-top:10px;"><button class="btn btn-sm" onclick="App.resetAnaFilter()">مسح التصفية</button></div>` : ''}
+    </div>
+    <div class="grid grid-4" style="margin-top:14px;">
+      <div class="stat"><div class="n">${fmtNum(A.totR)}</div><div class="l">إجمالي الكمية المرتجعة</div></div>
+      <div class="stat"><div class="n">${fmtNum(A.nRet)} <span class="small muted">من ${this.arCount(A.nStores,'محل واحد','محلين','محلات','محلًا')}</span></div><div class="l">عدد المرتجعات</div></div>
+      <div class="stat ${A.pct==null?'':(A.pct>=20?'bad':A.pct>=8?'warn':'')}"><div class="n">${this.anaPct(A.pct)}</div><div class="l">نسبة المرتجع من الطلبيات${A.totO? ` (من ${fmtNum(A.totO)})` : ''}</div></div>
+      <div class="stat ${A.follow?'bad':''}"><div class="n">${fmtNum(A.follow)}</div><div class="l">حالات تحتاج متابعة</div></div>
+    </div>
+    ${A.rows.length===0? `<div class="empty" style="margin-top:14px;">لا توجد مرتجعات مطابقة للتصفية</div>` : `
+    <div class="ana-wrap ${sel?'has-sel':''}" style="margin-top:14px;">
+      <div class="card" style="min-width:0;">
+        <div class="section-head"><h3>تحليل المرتجعات — الصنف في كل محل</h3></div>
+        <div class="small muted no-print" style="margin:-4px 0 8px;">اضغط على أي سطر لعرض كل مرتجعاته بأرقامها وكمياتها وصلاحيتها.</div>
+        <div class="tbl-wrap"><table class="tbl ret-lines ana-tbl">
+          <thead><tr><th>الصنف</th><th>المحل</th><th>مرات الطلب</th><th>المطلوب</th><th>مرات الإرجاع</th><th>المرتجع</th><th>النسبة</th><th>أكثر سبب</th><th>قرب الانتهاء</th><th>العجز</th><th>الحكم</th></tr></thead>
+          <tbody>${shown.map(p=>{ const it = d.items.find(i=>i.id===p.itemId)||{}; return `<tr class="ana-row ${sel&&sel.key===p.key?'ana-on':''}" data-key="${esc(p.key)}" onclick="App.rp_ana.sel=this.dataset.key;App.reReport()">
+            <td title="${esc(it.code||'')}"><b>${esc(it.name||'—')}</b></td>
+            <td class="ret-from">${esc(this.storeName(p.storeId)||'—')}</td>
+            <td>${p.oTimes? fmtNum(p.oTimes) : '—'}</td><td>${p.oTimes? fmtNum(p.oQty) : '—'}</td>
+            <td><b>${fmtNum(p.nRet)}</b></td><td><b>${fmtNum(p.rQty)}</b></td>
+            <td>${p.pct!=null && p.pct>=20 ? `<b style="color:var(--bad);">${this.anaPct(p.pct)}</b>` : this.anaPct(p.pct)}</td>
+            <td><span class="tag">${esc(p.topReason)}</span></td>
+            <td>${p.near? `<span class="tag ${p.nearMost?'bad':'warn'}">${fmtNum(p.near)} من ${fmtNum(p.nLines)}</span>` : '—'}</td>
+            <td>${p.short? `<b style="color:var(--bad);">${fmtNum(p.short)}</b>` : '—'}</td>
+            <td>${this.anaVerdictHtml(p.v)}</td></tr>`; }).join('')}</tbody>
+        </table></div>
+        ${A.rows.length>shown.length? `<div class="no-print" style="display:flex;gap:8px;align-items:center;justify-content:center;margin-top:12px;flex-wrap:wrap;">
+          <span class="small muted">معروض ${fmtNum(shown.length)} من ${fmtNum(A.rows.length)}</span>
+          <button class="btn btn-sm" onclick="App.rp_ana.limit=1e9;App.reReport()">عرض الكل</button></div>` : ''}
+        <div class="small muted" style="margin-top:10px;line-height:1.9;">
+          <b>الحكم:</b> «يطلب أكثر من حاجته» = تكرّر الطلب والإرجاع وكان أغلب المرتجع قريب الانتهاء أو فائضًا عن الحاجة •
+          «كمية زائدة» = المرتجع ٢٠٪ أو أكثر من المطلوب • «مراقبة» = تكرّر الإرجاع أو النسبة ١٠٪ أو أكثر •
+          «قرب الانتهاء» = عدد المرات التي رجع فيها الصنف منتهيًا أو خلال ${fmtNum(this.expiryAlertDays())} يومًا من انتهاء صلاحيته.
+        </div>
+      </div>
+      ${sel? this.anaPanelHtml(sel) : ''}
+    </div>`}
+    `;
+  },
+
   reportDiffs(){
     const d = this.db, st = this.rp_diffs, r3 = x=>Math.round(x*1000)/1000;
     let rows = this.returnsInScope();
@@ -7588,6 +7921,7 @@ service cloud.firestore {
   .tag.bad{background:var(--bad-soft);color:var(--bad);border-color:var(--bad-soft);}
   .tag.warn{background:var(--warn-soft);color:var(--warn);border-color:var(--warn-soft);}
 .tag.info{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-soft);}
+.ana-side{margin-top:12px;} .ana-tl{border-right:3px solid #ccc;padding-right:12px;margin-right:6px;} .ana-ev{margin-bottom:8px;} .ana-ev small{display:block;color:#666;} .ana-flag{display:flex;gap:8px;border:1px solid #999;border-radius:8px;padding:8px 10px;margin-top:8px;} .ana-sug{font-weight:700;} .ana-filters{display:flex;flex-wrap:wrap;gap:10px;}
   .empty{padding:14px;text-align:center;color:var(--muted);}
   .muted{color:var(--muted);} .small{font-size:11px;}
   .bar-chart{display:flex;flex-direction:column;gap:6px;}
@@ -7842,7 +8176,7 @@ try{
       try{ mirrorRebase(); }catch(e){ console.error(e); }
       if(renumbered){ clearTimeout(window.__renumT); window.__renumT = setTimeout(()=>{ saveData(App.db); try{ mirrorVerify(true); }catch(e){} }, 2500); }
     }
-    if(document.getElementById('app').style.display !== 'none'){ App.buildNav(); App.render(); App.tryPendingRet(); }
+    if(document.getElementById('app').style.display !== 'none'){ App.buildNav(); App.render(); App.tryPendingRet(); App.maybeRemind(); }
     if(App.publicGid) App.showPublicReturn();
   };
 
